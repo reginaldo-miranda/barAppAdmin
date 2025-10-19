@@ -111,7 +111,29 @@ export default function MesasScreen() {
     try {
       setLoading(true);
       const response = await mesaService.getAll();
-      setMesas(response.data || []);
+      
+      // Verificação automática de consistência: se uma mesa tem vendaAtual mas status não é ocupada
+      const mesasData = response.data || [];
+      let needsReload = false;
+      
+      for (const mesa of mesasData) {
+        if (mesa.vendaAtual && mesa.status !== 'ocupada') {
+          try {
+            await mesaService.update(mesa._id, { status: 'ocupada' });
+            needsReload = true;
+          } catch (updateError) {
+            console.error('Erro ao corrigir status da mesa:', mesa.numero, updateError);
+          }
+        }
+      }
+      
+      // Se houve correções, recarrega os dados
+      if (needsReload) {
+        const updatedResponse = await mesaService.getAll();
+        setMesas(updatedResponse.data || []);
+      } else {
+        setMesas(mesasData);
+      }
     } catch (error) {
       console.error('Erro ao carregar mesas:', error);
       Alert.alert('Erro', 'Não foi possível carregar as mesas');
@@ -352,17 +374,20 @@ export default function MesasScreen() {
       return;
     }
 
+    if (!formAbrirMesa.funcionarioResponsavel) {
+      Alert.alert('Erro', 'Por favor, selecione um funcionário responsável');
+      return;
+    }
+
     setAbindoMesa(true);
 
     try {
-      const updateData = {
-        status: 'ocupada',
-        nomeResponsavel: formAbrirMesa.nomeResponsavel.trim(),
-        funcionarioResponsavel: formAbrirMesa.funcionarioResponsavel || undefined,
-        observacoes: formAbrirMesa.observacoes.trim() || undefined
-      };
-
-      await mesaService.update(mesaSelecionada!._id, updateData);
+      await mesaService.abrir(
+        mesaSelecionada!._id,
+        formAbrirMesa.funcionarioResponsavel,
+        formAbrirMesa.nomeResponsavel.trim(),
+        formAbrirMesa.observacoes.trim()
+      );
       
       Alert.alert('Sucesso', 'Mesa aberta com sucesso!');
       setAbrirMesaModalVisible(false);
@@ -370,7 +395,7 @@ export default function MesasScreen() {
 
     } catch (error: any) {
       console.error('Erro ao abrir mesa:', error);
-      Alert.alert('Erro', 'Não foi possível abrir a mesa');
+      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível abrir a mesa');
     } finally {
       setAbindoMesa(false);
     }
@@ -511,7 +536,12 @@ export default function MesasScreen() {
     return (
       <View style={[styles.mesaCard, { borderLeftColor: getStatusColor(item.status) }]}>
         <View style={styles.mesaHeader}>
-          <Text style={styles.mesaNumero}>Mesa {item.numero}</Text>
+          <Text style={styles.mesaNumero}>
+            Mesa {item.numero}
+            {(item.nomeResponsavel || item.funcionarioResponsavel?.nome) && 
+              ` - Responsável: ${item.nomeResponsavel || item.funcionarioResponsavel?.nome}`
+            }
+          </Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
             <Ionicons name={getStatusIcon(item.status)} size={12} color="#fff" />
             <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
@@ -524,19 +554,7 @@ export default function MesasScreen() {
             <Text style={styles.infoText}>Capacidade: {item.capacidade} pessoas</Text>
           </View>
           
-          {item.nomeResponsavel && (
-            <View style={styles.infoRow}>
-              <Ionicons name="person" size={16} color="#666" />
-              <Text style={styles.infoText}>Responsável: {item.nomeResponsavel}</Text>
-            </View>
-          )}
-          
-          {item.funcionarioResponsavel && (
-            <View style={styles.infoRow}>
-              <Ionicons name="briefcase" size={16} color="#666" />
-              <Text style={styles.infoText}>Funcionário: {item.funcionarioResponsavel.nome}</Text>
-            </View>
-          )}
+
           
           {item.observacoes && (
             <View style={styles.infoRow}>
@@ -1043,7 +1061,9 @@ export default function MesasScreen() {
               </View>
 
               <View style={styles.dropdownFormGroup}>
-                <Text style={styles.formLabel}>Funcionário Responsável</Text>
+                <Text style={styles.formLabel}>
+                  Funcionário Responsável <Text style={styles.requiredField}>*</Text>
+                </Text>
                 <TouchableOpacity
                   style={styles.dropdownButton}
                   onPress={() => setFuncionarioDropdownVisible(!funcionarioDropdownVisible)}
@@ -1283,9 +1303,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   mesaNumero: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   statusBadge: {
     flexDirection: 'row',

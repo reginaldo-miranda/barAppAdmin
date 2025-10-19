@@ -11,7 +11,8 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { productService, comandaService } from '../services/api';
+import { productService, comandaService, categoryService } from '../services/api';
+import SearchAndFilter from './SearchAndFilter';
 interface Categoria {
   id: string;
   nome: string;
@@ -76,11 +77,11 @@ interface Props {
 
 export default function ProdutosComandaModal({ visible, onClose, comanda, onUpdateComanda }: Props) {
   const [produtos, setProdutos] = useState<ProdutoExtendido[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([
-    { id: 'todos', nome: 'Todos', icon: '🍽️' }
-  ]);
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState('todos');
-  const [buscarProduto, setBuscarProduto] = useState('');
+  const [filteredProducts, setFilteredProducts] = useState<ProdutoExtendido[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
   
@@ -91,43 +92,59 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
   useEffect(() => {
     if (visible && comanda) {
       loadProdutos();
+      loadCategories();
     }
   }, [visible, comanda]);
 
+  // Aplicar filtros sempre que os dados ou filtros mudarem
+  useEffect(() => {
+    filterProducts();
+  }, [searchText, produtos, selectedCategory]);
+
   const loadProdutos = async () => {
     try {
+      console.log('📦 Carregando produtos do banco...');
       const response = await productService.getAll();
-      const produtosAtivos = response.data?.filter((prod: ProdutoExtendido) => prod.ativo) || [];
+      const produtosAtivos = response.data?.filter((prod: ProdutoExtendido) => prod.ativo && prod.disponivel) || [];
+      
+      console.log('📦 Produtos carregados:', produtosAtivos.length);
       setProdutos(produtosAtivos);
+      setLoading(false);
+    } catch (error) {
+      console.error('❌ Erro ao carregar produtos:', error);
+      setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      console.log('📦 Carregando categorias do banco...');
+      const data = await categoryService.getAll();
       
-      // Extrair grupos únicos dos produtos para criar categorias dinâmicas
-      const grupos = produtosAtivos
-        .map((produto: ProdutoExtendido) => produto.grupo)
-        .filter((grupo: string | undefined): grupo is string => grupo !== undefined && grupo.trim() !== '');
-      const gruposUnicos: string[] = Array.from(new Set(grupos));
-      
-      // Mapear grupos para categorias com ícones
-      const iconesPorGrupo: { [key: string]: string } = {
-        'bebidas': '🥤',
-        'comidas': '🍖',
-        'limpeza': '🧽',
-        'sobremesas': '🍰',
-        'petiscos': '🍿',
-        'default': '📦'
-      };
-      
-      const novasCategorias: Categoria[] = [
-        { id: 'todos', nome: 'Todos', icon: '🍽️' },
-        ...gruposUnicos.map((grupo: string) => ({
-          id: grupo,
-          nome: grupo.charAt(0).toUpperCase() + grupo.slice(1),
-          icon: iconesPorGrupo[grupo.toLowerCase()] || iconesPorGrupo.default
+      // Configuração dos filtros de categoria igual à tela de produtos
+      const categoryFilters = [
+        { key: '', label: 'Todas', icon: 'apps' },
+        ...data.map((categoria: any) => ({
+          key: categoria.nome,
+          label: categoria.nome,
+          icon: 'pricetag'
         }))
       ];
       
-      setCategorias(novasCategorias);
+      console.log('📦 Categorias carregadas:', categoryFilters.length);
+      setCategories(categoryFilters);
     } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
+      console.error('❌ Erro ao carregar categorias:', error);
+      // Fallback para categorias padrão apenas em caso de erro
+      console.log('⚠️ Usando categorias padrão como fallback');
+      setCategories([
+        { key: '', label: 'Todas', icon: 'apps' },
+        { key: 'bebidas-alcoolicas', label: 'Bebidas Alcoólicas', icon: 'pricetag' },
+        { key: 'bebidas-nao-alcoolicas', label: 'Bebidas Não Alcoólicas', icon: 'pricetag' },
+        { key: 'pratos-principais', label: 'Pratos Principais', icon: 'pricetag' },
+        { key: 'aperitivos', label: 'Aperitivos', icon: 'pricetag' },
+        { key: 'sobremesas', label: 'Sobremesas', icon: 'pricetag' },
+      ]);
     }
   };
 
@@ -251,11 +268,46 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
     }
   };
 
-  const produtosFiltrados = produtos.filter((produto: ProdutoExtendido) => {
-    const matchCategoria = categoriaSelecionada === 'todos' || produto.grupo === categoriaSelecionada;
-    const matchBusca = produto.nome.toLowerCase().includes(buscarProduto.toLowerCase());
-    return matchCategoria && matchBusca;
-  });
+  const filterProducts = () => {
+    console.log('🔍 Aplicando filtros...');
+    console.log('🔍 Texto de busca:', searchText);
+    console.log('🔍 Categoria selecionada:', selectedCategory);
+    console.log('🔍 Total de produtos:', produtos.length);
+
+    let filtered = produtos;
+
+    // Filtro por categoria (usando categoria.nome em vez de grupo)
+    if (selectedCategory && selectedCategory !== '') {
+      filtered = filtered.filter(product => 
+        product.categoria && product.categoria.toLowerCase() === selectedCategory.toLowerCase()
+      );
+      console.log('🔍 Após filtro de categoria:', filtered.length);
+    }
+
+    // Filtro por texto de busca
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase().trim();
+      filtered = filtered.filter(product =>
+        product.nome.toLowerCase().includes(searchLower) ||
+        (product.descricao && product.descricao.toLowerCase().includes(searchLower)) ||
+        (product.categoria && product.categoria.toLowerCase().includes(searchLower))
+      );
+      console.log('🔍 Após filtro de texto:', filtered.length);
+    }
+
+    console.log('🔍 Produtos filtrados final:', filtered.length);
+    setFilteredProducts(filtered);
+  };
+
+  const handleSearchChange = (newSearchText: string) => {
+    console.log('🔄 Mudança de busca:', newSearchText);
+    setSearchText(newSearchText);
+  };
+
+  const handleFilterChange = (newSelectedFilter: string) => {
+    console.log('🔄 Mudança de filtro:', newSelectedFilter);
+    setSelectedCategory(newSelectedFilter);
+  };
 
   const renderProduto = ({ item: produto }: { item: ProdutoExtendido }) => {
     // Calcular quantidade já adicionada na comanda
@@ -265,41 +317,49 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
     
     return (
       <View style={[styles.produtoCard, quantidadeNaComanda > 0 && styles.produtoAdicionado]}>
+        {/* Nome do produto à esquerda */}
         <View style={styles.produtoInfo}>
           <Text style={styles.produtoNome}>{produto.nome}</Text>
+        </View>
+        
+        {/* Preço e controles à direita */}
+        <View style={styles.produtoRightSection}>
           <Text style={styles.produtoPreco}>R$ {produto.precoVenda?.toFixed(2)}</Text>
+          
+          <View style={styles.produtoControles}>
+            <TouchableOpacity 
+              style={[styles.btnControle, (quantidadeNaComanda === 0 || isLoading) && styles.btnControleDisabled]}
+              onPress={() => removerItem(produto)}
+              disabled={quantidadeNaComanda === 0 || isLoading}
+            >
+              <Text style={styles.btnControleText}>-</Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.quantidadeDisplay}>{quantidadeNaComanda}</Text>
+            
+            <TouchableOpacity 
+              style={[styles.btnControle, isLoading && styles.btnControleDisabled]}
+              onPress={() => {
+                console.log('BOTÃO CLICADO! Produto:', produto.nome);
+                Alert.alert('Teste', `Clicou no produto: ${produto.nome}`);
+                adicionarItem(produto);
+              }}
+              disabled={isLoading}
+            >
+              <Text style={styles.btnControleText}>
+                {isLoading ? '...' : `+${quantidade > 1 ? quantidade : ''}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
-        <View style={styles.produtoControles}>
-          <TouchableOpacity 
-            style={[styles.btnControle, (quantidadeNaComanda === 0 || isLoading) && styles.btnControleDisabled]}
-            onPress={() => removerItem(produto)}
-            disabled={quantidadeNaComanda === 0 || isLoading}
-          >
-            <Text style={styles.btnControleText}>-</Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.quantidadeDisplay}>{quantidadeNaComanda}</Text>
-          
-          <TouchableOpacity 
-            style={[styles.btnControle, isLoading && styles.btnControleDisabled]}
-            onPress={() => {
-              console.log('BOTÃO CLICADO! Produto:', produto.nome);
-              Alert.alert('Teste', `Clicou no produto: ${produto.nome}`);
-              adicionarItem(produto);
-            }}
-            disabled={isLoading}
-          >
-            <Text style={styles.btnControleText}>
-              {isLoading ? '...' : `+${quantidade > 1 ? quantidade : ''}`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
+        {/* Total em linha separada se houver quantidade */}
         {quantidadeNaComanda > 0 && (
-          <Text style={styles.produtoTotal}>
-            Total: R$ {(quantidadeNaComanda * produto.precoVenda).toFixed(2)}
-          </Text>
+          <View style={styles.produtoTotalContainer}>
+            <Text style={styles.produtoTotal}>
+              Total: R$ {(quantidadeNaComanda * produto.precoVenda).toFixed(2)}
+            </Text>
+          </View>
         )}
       </View>
     );
@@ -356,99 +416,51 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
 
           {/* Body */}
           <ScrollView style={styles.modalBody}>
-            {/* Categorias */}
-            <View style={styles.categoriasContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {categorias.map((categoria) => (
-                  <TouchableOpacity
-                    key={categoria.id}
-                    style={[
-                      styles.categoriaBtn,
-                      categoriaSelecionada === categoria.id && styles.categoriaBtnActive
-                    ]}
-                    onPress={() => setCategoriaSelecionada(categoria.id)}
-                  >
-                    <Text style={styles.categoriaIcon}>{categoria.icon}</Text>
-                    <Text style={[
-                      styles.categoriaText,
-                      categoriaSelecionada === categoria.id && styles.categoriaTextActive
-                    ]}>
-                      {categoria.nome}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            {/* Filtros */}
+            <SearchAndFilter
+              searchText={searchText}
+              onSearchChange={handleSearchChange}
+              selectedFilter={selectedCategory}
+              filters={categories}
+              onFilterChange={handleFilterChange}
+              searchPlaceholder="Buscar produtos..."
+            />
 
-            {/* Busca de Produtos */}
-            <View style={styles.buscaContainer}>
+            {/* Controle de Quantidade */}
+            <View style={styles.quantidadeControl}>
+              <Text style={styles.quantidadeLabel}>Qtd:</Text>
               <TextInput
-                style={styles.buscaInput}
-                placeholder="🔍 Buscar produto..."
-                value={buscarProduto}
-                onChangeText={setBuscarProduto}
+                style={styles.quantidadeInput}
+                value={quantidade.toString()}
+                onChangeText={(text) => setQuantidade(parseInt(text) || 1)}
+                keyboardType="numeric"
               />
-              <View style={styles.quantidadeControl}>
-                <Text style={styles.quantidadeLabel}>Qtd:</Text>
-                <TextInput
-                  style={styles.quantidadeInput}
-                  value={quantidade.toString()}
-                  onChangeText={(text) => setQuantidade(parseInt(text) || 1)}
-                  keyboardType="numeric"
-                />
-              </View>
             </View>
 
             {/* Lista de Produtos */}
-            <ScrollView style={styles.produtosList}>
-              {produtosFiltrados.length > 0 ? (
-                produtosFiltrados.map((produto: ProdutoExtendido) => {
-                  // Calcular quantidade já adicionada na comanda
-                  const itemNaComanda = comanda?.itens?.find((item: CartItem) => item.produto._id === produto._id);
-                  const quantidadeNaComanda = itemNaComanda ? itemNaComanda.quantidade : 0;
-                  const isLoading = loadingItems.has(produto._id);
-                  
-                  return (
-                    <View key={produto._id} style={styles.produtoCard}>
-                      <View style={styles.produtoInfo}>
-                        <Text style={styles.produtoNome}>{produto.nome}</Text>
-                        <Text style={styles.produtoPreco}>R$ {produto.precoVenda?.toFixed(2)}</Text>
-                      </View>
-                      
-                      <View style={styles.produtoControles}>
-                        <TouchableOpacity 
-                          style={[styles.btnControle, (quantidadeNaComanda === 0 || isLoading) && styles.btnControleDisabled]}
-                          onPress={() => removerItem(produto)}
-                          disabled={quantidadeNaComanda === 0 || isLoading}
-                        >
-                          <Text style={styles.btnControleText}>-</Text>
-                        </TouchableOpacity>
-                        
-                        <Text style={styles.quantidadeDisplay}>{quantidadeNaComanda}</Text>
-                        
-                        <TouchableOpacity 
-                          style={[styles.btnControle, isLoading && styles.btnControleDisabled]}
-                          onPress={() => adicionarItem(produto)}
-                          disabled={isLoading}
-                        >
-                          <Text style={styles.btnControleText}>
-                            {isLoading ? '...' : `+${quantidade > 1 ? quantidade : ''}`}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                      
-                      {quantidadeNaComanda > 0 && (
-                        <Text style={styles.produtoTotal}>
-                          Total: R$ {(quantidadeNaComanda * produto.precoVenda).toFixed(2)}
-                        </Text>
-                      )}
-                    </View>
-                  );
-                })
-              ) : (
-                <Text style={styles.semProdutos}>Nenhum produto encontrado</Text>
-              )}
-            </ScrollView>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Carregando produtos...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredProducts}
+                renderItem={renderProduto}
+                keyExtractor={(item) => item._id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.produtosList}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>
+                      {searchText || selectedCategory 
+                        ? 'Nenhum produto encontrado com os filtros aplicados'
+                        : 'Nenhum produto disponível'
+                      }
+                    </Text>
+                  </View>
+                }
+              />
+            )}
           </ScrollView>
         </View>
       </View>
@@ -691,62 +703,98 @@ const styles = StyleSheet.create({
   quantidadeControl: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#f8f9fa',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
   },
   quantidadeLabel: {
-    fontSize: 14,
-    marginRight: 5,
-    color: '#666',
-  },
-  quantidadeInput: {
-    width: 50,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    textAlign: 'center',
-    backgroundColor: '#f9f9f9',
-  },
-  produtosList: {
-    flex: 1,
-  },
-  produtoCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  produtoAdicionado: {
-    backgroundColor: '#e8f5e8',
-    borderColor: '#4caf50',
-  },
-  produtoInfo: {
-    flex: 1,
-  },
-  produtoNome: {
     fontSize: 16,
     fontWeight: '600',
+    marginRight: 10,
     color: '#333',
-    marginBottom: 2,
   },
-  produtoPreco: {
-    fontSize: 14,
+  quantidadeInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    textAlign: 'center',
+    backgroundColor: '#fff',
+     minWidth: 60,
+   },
+   produtosList: {
+     flex: 1,
+   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
     color: '#666',
   },
-  produtoControles: {
-    flexDirection: 'row',
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 10,
+    paddingVertical: 40,
   },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  produtoCard: {
+     flexDirection: 'column',
+     padding: 12,
+     marginBottom: 8,
+     backgroundColor: 'white',
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: '#ddd',
+     elevation: 1,
+     shadowColor: '#000',
+     shadowOffset: { width: 0, height: 1 },
+     shadowOpacity: 0.05,
+     shadowRadius: 2,
+   },
+   produtoAdicionado: {
+     backgroundColor: '#e8f5e8',
+     borderColor: '#4caf50',
+   },
+   produtoInfo: {
+     flex: 1,
+     marginBottom: 8,
+   },
+   produtoNome: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: '#333',
+     textAlign: 'left',
+   },
+   produtoRightSection: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     width: '100%',
+   },
+   produtoPreco: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: '#27ae60',
+   },
+   produtoControles: {
+     flexDirection: 'row',
+     alignItems: 'center',
+   },
   btnControle: {
     width: 35,
     height: 35,
@@ -772,14 +820,18 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
-  produtoTotal: {
-    position: 'absolute',
-    bottom: 2,
-    right: 12,
-    fontSize: 12,
-    color: '#4caf50',
-    fontWeight: '600',
-  },
+  produtoTotalContainer: {
+     marginTop: 8,
+     paddingTop: 8,
+     borderTopWidth: 1,
+     borderTopColor: '#e0e0e0',
+   },
+   produtoTotal: {
+     fontSize: 14,
+     color: '#4caf50',
+     fontWeight: '600',
+     textAlign: 'right',
+   },
   semProdutos: {
     textAlign: 'center',
     color: '#666',
