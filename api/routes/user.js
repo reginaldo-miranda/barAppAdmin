@@ -55,7 +55,7 @@ router.post("/create", async (req, res) => {
     }
 
     // Se for funcionário, verificar se o funcionário existe
-    if (tipo === 'funcionario' && funcionario) {
+    if (tipo === 'funcionario' && funcionario && funcionario !== 'admin-fixo') {
       const funcionarioExiste = await Employee.findById(funcionario);
       if (!funcionarioExiste) {
         return res.status(400).json({ error: "Funcionário não encontrado" });

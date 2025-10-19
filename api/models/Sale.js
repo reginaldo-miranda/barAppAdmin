@@ -31,7 +31,7 @@ const saleSchema = new mongoose.Schema({
   funcionario: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employee',
-    required: true
+    required: false
   },
   cliente: {
     type: mongoose.Schema.Types.ObjectId,

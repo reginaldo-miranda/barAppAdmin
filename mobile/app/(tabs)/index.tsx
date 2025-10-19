@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { saleService, mesaService } from '../../src/services/api';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 export default function HomeScreen() {
   const authContext = useAuth() as any;
@@ -82,7 +83,7 @@ export default function HomeScreen() {
         openTables,
         openComandas,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar estatísticas:', error);
     }
   };
@@ -146,6 +147,7 @@ export default function HomeScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      <ScreenIdentifier screenName="Home" />
       {/* Header com informações do usuário */}
       <View style={styles.header}>
         <View style={styles.userInfo}>

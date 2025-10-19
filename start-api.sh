@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "🚀 Iniciando API do Sistema Bar..."
-cd /Users/reginaldomiranda/Documents/sisbarnew
+cd /Users/reginaldomiranda/Documents/barAppAdmin/api
 
 # Verificar se .env existe
 if [ ! -f .env ]; then

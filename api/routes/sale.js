@@ -16,9 +16,12 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ error: 'Funcionário é obrigatório' });
     }
     
-    const funcionarioExiste = await Employee.findById(funcionario);
-    if (!funcionarioExiste) {
-      return res.status(400).json({ error: 'Funcionário não encontrado' });
+    // Permitir admin-fixo ou verificar se funcionário existe no banco
+    if (funcionario !== 'admin-fixo') {
+      const funcionarioExiste = await Employee.findById(funcionario);
+      if (!funcionarioExiste) {
+        return res.status(400).json({ error: 'Funcionário não encontrado' });
+      }
     }
 
     // Verificar se cliente existe (opcional)
@@ -36,17 +39,26 @@ router.post('/create', async (req, res) => {
       if (!mesaExiste) {
         return res.status(400).json({ error: 'Mesa não encontrada' });
       }
-      if (mesaExiste.status === 'ocupada') {
-        return res.status(400).json({ error: 'Mesa já está ocupada' });
+      
+      // Verificar se a mesa já tem uma venda ativa
+      if (mesaExiste.status === 'ocupada' && mesaExiste.vendaAtual) {
+        const vendaExistente = await Sale.findById(mesaExiste.vendaAtual);
+        if (vendaExistente && vendaExistente.status === 'aberta') {
+          return res.status(400).json({ error: 'Mesa já possui uma venda em aberto' });
+        }
       }
     }
 
     const dadosVenda = {
-      funcionario,
       itens: [],
       status: 'aberta',
       tipoVenda: tipoVenda || 'balcao'
     };
+
+    // Adicionar funcionario apenas se não for admin-fixo
+    if (funcionario !== 'admin-fixo') {
+      dadosVenda.funcionario = funcionario;
+    }
 
     // Adicionar nomeComanda se fornecido
     if (nomeComanda && nomeComanda.trim() !== '') {

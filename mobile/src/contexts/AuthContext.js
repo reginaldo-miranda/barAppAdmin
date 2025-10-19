@@ -32,48 +32,61 @@ export const AuthProvider = ({ children }) => {
     checkAuthState();
   }, []);
 
+  const clearAllData = async () => {
+    try {
+      await AsyncStorage.clear();
+      console.log('🧹 AuthContext: AsyncStorage limpo completamente');
+    } catch (error) {
+      console.error('🧹 AuthContext: Erro ao limpar AsyncStorage:', error);
+    }
+  };
+
   const checkAuthState = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      const userData = await AsyncStorage.getItem('userData');
+      setLoading(true);
+      console.log('🔍 AuthContext: Verificando estado de autenticação...');
       
-      console.log('🔍 Verificando estado de autenticação:', { token: !!token, userData: !!userData });
+      // Limpar dados antigos primeiro
+      await clearAllData();
       
-      if (token && userData) {
-        const parsedUser = JSON.parse(userData);
-        console.log('👤 Usuário carregado do storage:', parsedUser);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } else {
-        console.log('❌ Nenhum usuário encontrado no storage');
-      }
+      // Forçar estado não autenticado
+      setIsAuthenticated(false);
+      setUser(null);
+      console.log('🔍 AuthContext: Estado limpo - usuário não autenticado');
     } catch (error) {
-      console.error('Erro ao verificar estado de autenticação:', error);
+      console.error('🔍 AuthContext: Erro ao verificar autenticação:', error);
+      setIsAuthenticated(false);
+      setUser(null);
     } finally {
       setLoading(false);
+      console.log('🔍 AuthContext: Verificação de autenticação concluída');
     }
   };
 
   const login = async (credentials) => {
     try {
+      console.log('🔐 AuthContext: Iniciando login...');
       setLoading(true);
       const response = await authService.login(credentials);
-      console.log('🔐 Resposta do login:', response.data);
+      console.log('🔐 AuthContext: Resposta do login:', response.data);
       
       if (response.data.token) {
+        console.log('🔐 AuthContext: Login bem-sucedido, salvando dados...');
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
         
-        console.log('👤 Dados do usuário salvos:', response.data.user);
+        console.log('🔐 AuthContext: Dados do usuário salvos:', response.data.user);
         setUser(response.data.user);
         setIsAuthenticated(true);
+        console.log('🔐 AuthContext: Usuário autenticado:', response.data.user);
         
         return { success: true, data: response.data };
       }
       
+      console.log('🔐 AuthContext: Login falhou - credenciais inválidas');
       return { success: false, message: 'Credenciais inválidas' };
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('🔐 AuthContext: Erro no login:', error);
       return { 
         success: false, 
         message: error.response?.data?.message || 'Erro ao fazer login' 
@@ -107,19 +120,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Função para limpar completamente o AsyncStorage (para debug)
+  const clearAllStorage = async () => {
+    try {
+      console.log('🧹 AuthContext: Limpando todo o AsyncStorage...');
+      await AsyncStorage.clear();
+      setUser(null);
+      setIsAuthenticated(false);
+      console.log('🧹 AuthContext: AsyncStorage limpo com sucesso');
+    } catch (error) {
+      console.error('Erro ao limpar AsyncStorage:', error);
+    }
+  };
+
   // Funções para verificar permissões
   const hasPermission = (permission) => {
-    console.log('🔍 hasPermission chamado:', { permission, user, userTipo: user?.tipo, userPermissoes: user?.permissoes });
     if (!user) {
-      console.log('❌ Usuário não encontrado');
       return false;
     }
     if (user.tipo === 'admin') {
-      console.log('✅ Usuário é admin, acesso liberado');
       return true;
     }
     const hasAccess = user.permissoes?.[permission] || false;
-    console.log(`🔐 Verificando permissão '${permission}':`, hasAccess);
     return hasAccess;
   };
 
@@ -138,6 +160,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     checkAuthState,
+    clearAllStorage,
     hasPermission,
     isAdmin,
     isFuncionario,

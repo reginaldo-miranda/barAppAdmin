@@ -6,6 +6,7 @@ import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
 import { comandaService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Comanda } from '../../src/types/index';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 export default function ComandasAbertasScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -25,7 +26,7 @@ export default function ComandasAbertasScreen() {
         venda.tipoVenda === 'comanda' && venda.status === 'aberta'
       ) || [];
       setComandas(comandasAbertas);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar comandas:', error);
       Alert.alert('Erro', 'Não foi possível carregar as comandas abertas.');
     } finally {
@@ -66,7 +67,7 @@ export default function ComandasAbertasScreen() {
       try {
         const response = await comandaService.getById(comandaSelecionada._id);
         setComandaSelecionada(response.data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao atualizar comanda selecionada:', error);
       }
     }
@@ -100,6 +101,7 @@ export default function ComandasAbertasScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenIdentifier screenName="Comandas" />
       <Text style={styles.title}>Comandas Abertas</Text>
       <TouchableOpacity style={styles.button} onPress={handleOpenModal}>
         <Text style={styles.buttonText}>Nova Comanda</Text>

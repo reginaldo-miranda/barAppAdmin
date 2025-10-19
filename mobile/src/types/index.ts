@@ -28,6 +28,7 @@ export interface Product {
   descricao: string;
   precoVenda: number;
   categoria: string;
+  grupo?: string;
   ativo: boolean;
   disponivel: boolean;
 }

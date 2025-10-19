@@ -206,9 +206,16 @@ const ProductSelector = ({
       style={styles.productRow}
       onPress={() => handleProductPress(item)}
     >
-      <Text style={styles.productName} numberOfLines={1}>{item.nome}</Text>
-      <Text style={styles.productPrice}>R$ {item.precoVenda.toFixed(2)}</Text>
-      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+      <View style={styles.productLeftSection}>
+        <Text style={styles.productPrice}>R$ {item.precoVenda.toFixed(2)}</Text>
+        <Ionicons name="chevron-forward" size={20} color="#ccc" style={styles.chevronIcon} />
+      </View>
+      <View style={styles.productRightSection}>
+        <Text style={styles.productName} numberOfLines={2}>{item.nome}</Text>
+        {item.descricao && (
+          <Text style={styles.productDescription} numberOfLines={1}>{item.descricao}</Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -216,7 +223,7 @@ const ProductSelector = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      transparent={false}
       onRequestClose={handleClose}
     >
       <View style={styles.container}>
@@ -408,9 +415,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    padding: 8,
+    padding: 12,
     marginHorizontal: 16,
-    marginVertical: 1,
+    marginVertical: 2,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -421,19 +428,35 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  productInfo: {
+  productLeftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  productRightSection: {
     flex: 1,
+    marginLeft: 12,
   },
   productName: {
-    flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    textAlign: 'right',
+  },
+  productDescription: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'right',
+    marginTop: 2,
   },
   productPrice: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#2196F3',
+    marginRight: 8,
+  },
+  chevronIcon: {
+    marginLeft: 4,
   },
   emptyContainer: {
     flex: 1,

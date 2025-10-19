@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { customerService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface Customer {
   _id: string;
@@ -64,7 +65,7 @@ export default function AdminClientesScreen() {
       setLoading(true);
       const response = await customerService.getAll();
       setCustomers(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar clientes:', error);
       Alert.alert('Erro', 'Erro ao carregar clientes');
     } finally {
@@ -95,7 +96,7 @@ export default function AdminClientesScreen() {
       setModalVisible(false);
       resetForm();
       loadCustomers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar cliente:', error);
       Alert.alert('Erro', 'Erro ao salvar cliente');
     }
@@ -132,7 +133,7 @@ export default function AdminClientesScreen() {
               await customerService.delete(customer._id);
               Alert.alert('Sucesso', 'Cliente excluído com sucesso');
               loadCustomers();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Erro ao excluir cliente:', error);
               Alert.alert('Erro', 'Erro ao excluir cliente');
             }
@@ -265,6 +266,7 @@ export default function AdminClientesScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenIdentifier screenName="Admin - Clientes" />
       {/* Header com busca e botão adicionar */}
       <View style={styles.header}>
         <View style={styles.searchContainer}>

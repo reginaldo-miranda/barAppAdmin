@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { saleService, productService, customerService, employeeService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface ReportStats {
   totalVendas: number;
@@ -135,7 +136,7 @@ export default function AdminRelatoriosScreen() {
         vendasPorStatus,
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar relatórios:', error);
       Alert.alert('Erro', 'Erro ao carregar relatórios');
     } finally {
@@ -201,6 +202,7 @@ export default function AdminRelatoriosScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      <ScreenIdentifier screenName="Admin - Relatórios" />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Relatórios</Text>

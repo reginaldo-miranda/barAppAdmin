@@ -25,6 +25,15 @@ const mesaSchema = new mongoose.Schema({
     ref: 'Sale',
     default: null
   },
+  funcionarioResponsavel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
+  nomeResponsavel: {
+    type: String,
+    maxlength: 100
+  },
   clientesAtuais: {
     type: Number,
     default: 0
@@ -61,6 +70,8 @@ mesaSchema.methods.abrir = function(numeroClientes = 1) {
 mesaSchema.methods.fechar = function() {
   this.status = 'livre';
   this.vendaAtual = null;
+  this.funcionarioResponsavel = null;
+  this.nomeResponsavel = '';
   this.clientesAtuais = 0;
   this.horaAbertura = null;
   this.observacoes = '';

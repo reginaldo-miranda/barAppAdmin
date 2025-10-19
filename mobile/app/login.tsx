@@ -46,6 +46,8 @@ export default function LoginScreen() {
     }
   };
 
+
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -213,5 +215,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+    marginBottom: 16,
   },
 });

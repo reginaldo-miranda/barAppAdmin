@@ -15,15 +15,15 @@ cleanup() {
 trap cleanup SIGINT
 
 echo "1️⃣ Iniciando API..."
-gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barApp && ./start-api.sh; exec bash" 2>/dev/null || \
-osascript -e 'tell app "Terminal" to do script "cd /Users/reginaldomiranda/Documents/barApp && ./start-api.sh"' 2>/dev/null || \
+gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-api.sh; exec bash" 2>/dev/null || \
+osascript -e 'tell app "Terminal" to do script "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-api.sh"' 2>/dev/null || \
 echo "⚠️  Abra um novo terminal e execute: ./start-api.sh"
 
 sleep 3
 
 echo "2️⃣ Iniciando Mobile App..."
-gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barApp && ./start-mobile.sh; exec bash" 2>/dev/null || \
-osascript -e 'tell app "Terminal" to do script "cd /Users/reginaldomiranda/Documents/barApp && ./start-mobile.sh"' 2>/dev/null || \
+gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-mobile.sh; exec bash" 2>/dev/null || \
+osascript -e 'tell app "Terminal" to do script "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-mobile.sh"' 2>/dev/null || \
 echo "⚠️  Abra um novo terminal e execute: ./start-mobile.sh"
 
 echo ""

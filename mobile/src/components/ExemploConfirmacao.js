@@ -117,21 +117,7 @@ const ExemploConfirmacao = () => {
       <View style={styles.codeExample}>
         <Text style={styles.codeTitle}>Como usar em qualquer componente:</Text>
         <Text style={styles.codeText}>
-{`// 1. Importar o hook
-import { useConfirmation } from '../contexts/ConfirmationContext';
-
-// 2. Usar no componente
-const { confirmDelete } = useConfirmation();
-
-// 3. Chamar quando necessário
-const handleDelete = async () => {
-  const confirmed = await confirmDelete(
-    'este item',
-    () => {
-      // Ação de confirmação
-    }
-  );
-};`}
+          {`// 1. Importar o hook\nimport { useConfirmation } from '../contexts/ConfirmationContext';\n\n// 2. Usar no componente\nconst { confirmDelete } = useConfirmation();\n\n// 3. Chamar quando necessário\nconst handleDelete = async () => {\n  const confirmed = await confirmDelete(\n    'este item',\n    () => {\n      // Ação de confirmação\n    }\n  );\n};`}
         </Text>
       </View>
     </View>

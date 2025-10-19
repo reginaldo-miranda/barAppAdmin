@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { employeeService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface Employee {
   _id: string;
@@ -60,7 +61,7 @@ export default function AdminFuncionariosScreen() {
       setLoading(true);
       const response = await employeeService.getAll();
       setEmployees(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar funcionários:', error);
       Alert.alert('Erro', 'Erro ao carregar funcionários');
     } finally {
@@ -92,7 +93,7 @@ export default function AdminFuncionariosScreen() {
       setModalVisible(false);
       resetForm();
       loadEmployees();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar funcionário:', error);
       Alert.alert('Erro', 'Erro ao salvar funcionário');
     }
@@ -126,7 +127,7 @@ export default function AdminFuncionariosScreen() {
               await employeeService.delete(employee._id);
               Alert.alert('Sucesso', 'Funcionário excluído com sucesso');
               loadEmployees();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Erro ao excluir funcionário:', error);
               Alert.alert('Erro', 'Erro ao excluir funcionário');
             }
@@ -235,6 +236,7 @@ export default function AdminFuncionariosScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenIdentifier screenName="Admin - Funcionários" />
       {/* Header com busca e botão adicionar */}
       <View style={styles.header}>
         <View style={styles.searchContainer}>

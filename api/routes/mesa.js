@@ -9,11 +9,30 @@ router.get('/list', async (req, res) => {
   try {
     const mesas = await Mesa.find({ ativo: true })
       .populate('vendaAtual')
+      .populate('funcionarioResponsavel', 'nome')
       .sort({ numero: 1 });
 
     res.json(mesas);
   } catch (error) {
     res.status(500).json({ message: 'Erro ao buscar mesas', error: error.message });
+  }
+});
+
+// Buscar mesa por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const mesa = await Mesa.findById(id)
+      .populate('vendaAtual')
+      .populate('funcionarioResponsavel', 'nome');
+
+    if (!mesa) {
+      return res.status(404).json({ message: 'Mesa não encontrada' });
+    }
+
+    res.json({ data: mesa });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar mesa', error: error.message });
   }
 });
 
@@ -46,7 +65,7 @@ router.post('/create', async (req, res) => {
 router.post('/:id/abrir', async (req, res) => {
   try {
     const { id } = req.params;
-    const { numeroClientes = 1 } = req.body;
+    const { funcionarioId, nomeResponsavel, observacoes, numeroClientes = 1 } = req.body;
     
     const mesa = await Mesa.findById(id);
     if (!mesa) {
@@ -57,7 +76,21 @@ router.post('/:id/abrir', async (req, res) => {
       return res.status(400).json({ message: 'Mesa já está ocupada' });
     }
 
-    await mesa.abrir(numeroClientes);
+    // Validar funcionário responsável
+    if (!funcionarioId) {
+      return res.status(400).json({ message: 'Funcionário responsável é obrigatório' });
+    }
+
+    // Atualizar mesa com informações completas
+    mesa.status = 'ocupada';
+    mesa.clientesAtuais = numeroClientes;
+    mesa.horaAbertura = new Date();
+    mesa.observacoes = observacoes || '';
+    mesa.funcionarioResponsavel = funcionarioId;
+    mesa.nomeResponsavel = nomeResponsavel || '';
+
+    await mesa.save();
+    
     res.json({ message: 'Mesa aberta com sucesso', mesa });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao abrir mesa', error: error.message });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { mesaService, saleService, employeeService } from '../../src/services/api';
 import ProductSelector from '../../src/components/ProductSelector.js';
 import { useAuth } from '../../src/contexts/AuthContext';
+import SearchAndFilter from '../../src/components/SearchAndFilter';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+
+interface Funcionario {
+  _id: string;
+  nome: string;
+}
 
 interface Mesa {
   _id: string;
@@ -32,14 +39,20 @@ interface Mesa {
 }
 
 export default function MesasScreen() {
+  const { user } = useAuth();
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [productSelectorVisible, setProductSelectorVisible] = useState(false);
-  const [selectedMesa, setSelectedMesa] = useState<Mesa | null>(null);
-  const [currentSale, setCurrentSale] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  
+  // Estados para modais
   const [gerarMesasModalVisible, setGerarMesasModalVisible] = useState(false);
-  const [gerandoMesas, setGerandoMesas] = useState(false);
+  const [criarMesaModalVisible, setCriarMesaModalVisible] = useState(false);
+  const [abrirMesaModalVisible, setAbrirMesaModalVisible] = useState(false);
+  const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null);
+  
+  // Estados para formulários
   const [quantidades, setQuantidades] = useState({
     interna: 10,
     externa: 5,
@@ -47,50 +60,6 @@ export default function MesasScreen() {
     balcao: 2
   });
   
-  // Estados para tooltips
-  const [showTooltipCriar, setShowTooltipCriar] = useState(false);
-  const [showTooltipGerar, setShowTooltipGerar] = useState(false);
-  
-  // Refs para timers dos tooltips
-  const tooltipCriarTimer = useRef<number | null>(null);
-  const tooltipGerarTimer = useRef<number | null>(null);
-
-  // Estados para modal de abertura de mesa
-  const [abrirMesaModalVisible, setAbrirMesaModalVisible] = useState(false);
-  const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null);
-  const [responsavelMesa, setResponsavelMesa] = useState('');
-  const [numeroClientes, setNumeroClientes] = useState('');
-  
-  // Estados para funcionários
-  const [funcionarios, setFuncionarios] = useState<any[]>([]);
-  const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<any>(null);
-  
-  // Estados para filtros e busca
-  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'livre' | 'ocupada' | 'reservada'>('todos');
-  const [textoBusca, setTextoBusca] = useState('');
-  const [funcionarioDropdownOpen, setFuncionarioDropdownOpen] = useState(false);
-  
-  // Estado para observações
-  const [observacoesMesa, setObservacoesMesa] = useState('');
-
-  // Funções para gerenciar tooltips
-  const showTooltipWithDelay = (setTooltip: (value: boolean) => void, timerRef: React.MutableRefObject<number | null>) => {
-    timerRef.current = setTimeout(() => {
-      setTooltip(true);
-    }, 100); // 100ms delay - quase instantâneo
-  };
-
-  const hideTooltip = (setTooltip: (show: boolean) => void, timerRef: React.MutableRefObject<number | null>) => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    setTooltip(false);
-  };
-  
-  // Estados para o formulário de criação de mesa
-  const [criarMesaModalVisible, setCriarMesaModalVisible] = useState(false);
-  const [criandoMesa, setCriandoMesa] = useState(false);
   const [formMesa, setFormMesa] = useState({
     numero: '',
     nome: '',
@@ -99,43 +68,50 @@ export default function MesasScreen() {
     observacoes: ''
   });
   
-  const { user } = useAuth() as any;
+  const [formAbrirMesa, setFormAbrirMesa] = useState({
+    nomeResponsavel: '',
+    funcionarioResponsavel: '',
+    observacoes: ''
+  });
+  
+  // Estados para loading
+  const [gerandoMesas, setGerandoMesas] = useState(false);
+  const [criandoMesa, setCriandoMesa] = useState(false);
+  const [abindoMesa, setAbindoMesa] = useState(false);
+  
+  // Estados para funcionários
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [funcionarioDropdownVisible, setFuncionarioDropdownVisible] = useState(false);
+  
+  // Estados para tooltips
+  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
+  const tooltipTimeoutRef = useRef<number | null>(null);
+
+  // Filtros de status
+  const statusFilters = [
+    { key: 'todas', label: 'Todas', icon: 'restaurant', color: '#666' },
+    { key: 'livre', label: 'Livres', icon: 'checkmark-circle', color: '#4CAF50' },
+    { key: 'ocupada', label: 'Ocupadas', icon: 'people', color: '#F44336' },
+    { key: 'reservada', label: 'Reservadas', icon: 'time', color: '#FF9800' },
+    { key: 'manutencao', label: 'Manutenção', icon: 'construct', color: '#9E9E9E' },
+  ];
+
+  // Função para lidar com mudanças de filtro
+  const handleFilterChange = (filterKey: string) => {
+    setSelectedStatus(filterKey === 'todas' ? null : filterKey);
+  };
+
+  // Carregar dados iniciais
+  useEffect(() => {
+    loadMesas();
+    loadFuncionarios();
+  }, []);
 
   const loadMesas = async () => {
     try {
+      setLoading(true);
       const response = await mesaService.getAll();
-      const mesasData = response.data;
-      
-      // Para cada mesa ocupada, buscar a venda ativa para obter o nome do responsável
-      const mesasComResponsavel = await Promise.all(
-        mesasData.map(async (mesa: Mesa) => {
-          if (mesa.status === 'ocupada') {
-            try {
-              // Buscar venda ativa da mesa
-              const vendaResponse = await saleService.getByMesa(mesa._id);
-              const vendas = vendaResponse.data;
-              
-              // Encontrar venda aberta
-              const vendaAberta = vendas.find((venda: any) => venda.status === 'aberta');
-              
-              if (vendaAberta && vendaAberta.observacoes) {
-                // Extrair nome do responsável das observações
-                const match = vendaAberta.observacoes.match(/Responsavel:\s*(.+)/i);
-                if (match) {
-                  mesa.nomeResponsavel = match[1].trim();
-                }
-              }
-              
-              console.log(`Mesa ${mesa.numero} - Responsável: ${mesa.nomeResponsavel || 'Não encontrado'}`);
-            } catch (error) {
-              console.error(`Erro ao buscar venda da mesa ${mesa.numero}:`, error);
-            }
-          }
-          return mesa;
-        })
-      );
-      
-      setMesas(mesasComResponsavel);
+      setMesas(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar mesas:', error);
       Alert.alert('Erro', 'Não foi possível carregar as mesas');
@@ -147,180 +123,75 @@ export default function MesasScreen() {
   const loadFuncionarios = async () => {
     try {
       const response = await employeeService.getAll();
-      const funcionariosAtivos = response.data.filter((func: any) => func.ativo);
-      setFuncionarios(funcionariosAtivos);
+      setFuncionarios(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar funcionários:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os funcionários');
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMesas();
     setRefreshing(false);
-  };
-
-  useEffect(() => {
-    loadMesas();
-    loadFuncionarios();
   }, []);
 
-  const handleMesaPress = (mesa: Mesa) => {
-    if (!user) {
-      Alert.alert('Erro', 'Usuário não autenticado');
-      return;
-    }
+  // Estatísticas das mesas
+  const stats = useMemo(() => {
+    const total = mesas.length;
+    const livres = mesas.filter(mesa => mesa.status === 'livre').length;
+    const ocupadas = mesas.filter(mesa => mesa.status === 'ocupada').length;
+    const reservadas = mesas.filter(mesa => mesa.status === 'reservada').length;
+    const manutencao = mesas.filter(mesa => mesa.status === 'manutencao').length;
     
-    if (mesa.status === 'livre') {
-      Alert.alert(
-        'Abrir Mesa',
-        `Deseja abrir a mesa ${mesa.numero}?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Abrir', onPress: () => openMesa(mesa) },
-        ]
-      );
-    } else if (mesa.status === 'ocupada') {
-      Alert.alert(
-        'Mesa Ocupada',
-        `A mesa ${mesa.numero} está ocupada. O que deseja fazer?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Adicionar Produtos', onPress: () => openProductSelector(mesa) },
-          { text: 'Ver Vendas', onPress: () => router.push(`/sale?mesaId=${mesa._id}&viewMode=view`) },
-          { text: 'Fechar Mesa', style: 'destructive', onPress: () => closeMesa(mesa._id) },
-        ]
-      );
-    } else if (mesa.status === 'reservada') {
-      Alert.alert(
-        'Mesa Reservada',
-        `A mesa ${mesa.numero} está reservada. O que deseja fazer?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Abrir Mesa', onPress: () => openMesa(mesa) },
-          { text: 'Liberar Reserva', onPress: () => liberarReserva(mesa._id) },
-        ]
-      );
-    } else if (mesa.status === 'manutencao') {
-      Alert.alert('Mesa em Manutenção', 'Esta mesa está em manutenção e não pode ser utilizada.');
-    } else {
-      Alert.alert('Status Desconhecido', `Status da mesa: ${mesa.status}`);
-    }
-  };
+    return { total, livres, ocupadas, reservadas, manutencao };
+  }, [mesas]);
 
-  const limparEstadosModal = () => {
-    setFuncionarioSelecionado('');
-    setResponsavelMesa('');
-    setObservacoesMesa('');
-    setFuncionarioDropdownOpen(false);
-    setMesaSelecionada(null);
-  };
-
-  const openMesa = async (mesa: Mesa) => {
-    // Verificar se a mesa está livre antes de abrir o modal
-    if (mesa.status !== 'livre') {
-      Alert.alert('Erro', 'Esta mesa não está disponível para abertura.');
-      return;
-    }
-    
-    // Abrir modal para solicitar número de clientes
-    setMesaSelecionada(mesa);
-    setNumeroClientes('');
-    setFuncionarioSelecionado('');
-    setFuncionarioDropdownOpen(false);
-    setAbrirMesaModalVisible(true);
-  };
-
-  const confirmarAberturaMesa = async () => {
-    if (!mesaSelecionada) return;
-
-    if (!funcionarioSelecionado) {
-      Alert.alert('Erro', 'Por favor, selecione um funcionário responsável');
-      return;
-    }
-
-    // Validações de status da mesa
-    if (mesaSelecionada.status === 'ocupada') {
-      Alert.alert('Erro', 'Esta mesa já está ocupada.');
-      return;
-    }
-    
-    if (mesaSelecionada.status === 'manutencao') {
-      Alert.alert('Erro', 'Esta mesa está em manutenção e não pode ser aberta.');
-      return;
-    }
-
-
-
-    await executarAberturaMesa();
-  };
-
-  const executarAberturaMesa = async () => {
-    if (!mesaSelecionada) return;
-
-    try {
-      // Usar a rota correta da API: POST /:id/abrir
-      const response = await mesaService.abrir(mesaSelecionada._id, funcionarioSelecionado, responsavelMesa, observacoesMesa);
+  // Filtrar mesas
+  const filteredMesas = useMemo(() => {
+    return mesas.filter(mesa => {
+      const matchesSearch = searchTerm === '' || 
+        mesa.numero.toString().includes(searchTerm) ||
+        (mesa.nomeResponsavel && mesa.nomeResponsavel.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      // Recarregar lista de mesas
-      await loadMesas();
+      const matchesStatus = selectedStatus === null || mesa.status === selectedStatus;
       
-      // Fechar modal e limpar estados
-      setAbrirMesaModalVisible(false);
-      limparEstadosModal();
-      
-      // Navegar para a tela de vendas
-      router.push({
-        pathname: '/sale',
-        params: { 
-          mesaId: mesaSelecionada._id, 
-          mesaNumero: mesaSelecionada.numero 
-        }
-      });
-      
-    } catch (error: any) {
-      console.error('Erro ao abrir mesa:', error);
-      Alert.alert('Erro', error.response?.data?.message || 'Erro ao abrir mesa. Tente novamente.');
+      return matchesSearch && matchesStatus;
+    });
+  }, [mesas, searchTerm, selectedStatus]);
+
+  // Funções para tooltips
+  const showTooltip = (tooltipId: string) => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
     }
+    setTooltipVisible(tooltipId);
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setTooltipVisible(null);
+    }, 2000);
   };
 
-  const closeMesa = async (mesaId: string) => {
-    try {
-      await mesaService.update(mesaId, { status: 'livre' });
-      await loadMesas();
-      Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao fechar mesa:', error);
-      Alert.alert('Erro', 'Não foi possível fechar a mesa');
+  const hideTooltip = () => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
     }
+    setTooltipVisible(null);
   };
 
-  const liberarReserva = async (mesaId: string) => {
-    try {
-      await mesaService.update(mesaId, { status: 'livre' });
-      Alert.alert('Sucesso', 'Reserva liberada com sucesso');
-      loadMesas();
-    } catch (error) {
-      console.error('Erro ao liberar reserva:', error);
-      Alert.alert('Erro', 'Não foi possível liberar a reserva');
-    }
-  };
-
-  const gerarMesas = () => {
-    setGerarMesasModalVisible(true);
-  };
-
+  // Função para abrir modal de criação de mesa individual
   const abrirModalCriarMesa = () => {
+    setFormMesa({
+      numero: '',
+      nome: '',
+      capacidade: '',
+      tipo: 'interna',
+      observacoes: ''
+    });
     setCriarMesaModalVisible(true);
   };
 
+  // Função para fechar modal de criação de mesa
   const fecharModalCriarMesa = () => {
     setCriarMesaModalVisible(false);
-    limparFormulario();
-  };
-
-  const limparFormulario = () => {
     setFormMesa({
       numero: '',
       nome: '',
@@ -330,428 +201,502 @@ export default function MesasScreen() {
     });
   };
 
+  // Função para criar mesa individual
   const criarMesaIndividual = async () => {
+    if (!formMesa.numero.trim()) {
+      Alert.alert('Erro', 'Por favor, informe o número da mesa');
+      return;
+    }
+
+    if (!formMesa.nome.trim()) {
+      Alert.alert('Erro', 'Por favor, informe o nome da mesa');
+      return;
+    }
+
+    if (!formMesa.capacidade.trim() || isNaN(Number(formMesa.capacidade))) {
+      Alert.alert('Erro', 'Por favor, informe uma capacidade válida');
+      return;
+    }
+
+    setCriandoMesa(true);
+
     try {
-      // Validação dos campos obrigatórios
-      if (!formMesa.numero.trim()) {
-        Alert.alert('Erro', 'Número da mesa é obrigatório');
-        return;
-      }
-      if (!formMesa.nome.trim()) {
-        Alert.alert('Erro', 'Nome da mesa é obrigatório');
-        return;
-      }
-      if (!formMesa.capacidade.trim() || isNaN(Number(formMesa.capacidade)) || Number(formMesa.capacidade) < 1) {
-        Alert.alert('Erro', 'Capacidade deve ser um número maior que 0');
-        return;
-      }
-
-      setCriandoMesa(true);
-
       const mesaData = {
         numero: formMesa.numero.trim(),
         nome: formMesa.nome.trim(),
-        capacidade: Number(formMesa.capacidade),
+        capacidade: parseInt(formMesa.capacidade),
         tipo: formMesa.tipo,
-        observacoes: formMesa.observacoes.trim() || undefined
+        observacoes: formMesa.observacoes.trim(),
+        status: 'livre'
       };
 
-      const response = await mesaService.create(mesaData);
-      const novaMesa = response.data || response;
+      await mesaService.create(mesaData);
       
-      Alert.alert('Sucesso', `Mesa ${novaMesa.numero || formMesa.numero} criada com sucesso!`);
-      await loadMesas();
+      Alert.alert('Sucesso', 'Mesa criada com sucesso!');
       fecharModalCriarMesa();
+      await loadMesas();
       
     } catch (error: any) {
       console.error('Erro ao criar mesa:', error);
-      if (error.response?.status === 400 && error.response?.data?.message?.includes('duplicate')) {
-        Alert.alert('Erro', `Mesa com número ${formMesa.numero} já existe`);
-      } else {
-        Alert.alert('Erro', 'Erro ao criar mesa. Tente novamente.');
-      }
+      Alert.alert(
+        'Erro', 
+        error.response?.data?.message || 'Não foi possível criar a mesa'
+      );
     } finally {
       setCriandoMesa(false);
     }
   };
 
-  const criarMesasAutomaticamente = async () => {
-    try {
-      setGerandoMesas(true);
-      
-      let numeroAtual = 1;
-      let mesasCriadas = 0;
-      let mesasJaExistentes = 0;
-      const mesasParaCriar = [];
+  // Função para abrir modal de geração automática de mesas
+  const gerarMesas = () => {
+    setQuantidades({
+      interna: 10,
+      externa: 5,
+      vip: 3,
+      balcao: 2
+    });
+    setGerarMesasModalVisible(true);
+  };
 
-      // Criar mesas internas
+  // Função para criar mesas automaticamente
+  const criarMesasAutomaticamente = async () => {
+    const totalMesas = quantidades.interna + quantidades.externa + quantidades.vip + quantidades.balcao;
+    
+    if (totalMesas === 0) {
+      Alert.alert('Erro', 'Por favor, defina pelo menos uma mesa para criar');
+      return;
+    }
+
+    setGerandoMesas(true);
+
+    try {
+      const mesasParaCriar = [];
+      let numeroAtual = 1;
+
+      // Gerar mesas internas
       for (let i = 0; i < quantidades.interna; i++) {
         mesasParaCriar.push({
-          numero: numeroAtual.toString().padStart(2, '0'),
-          nome: `Mesa ${numeroAtual.toString().padStart(2, '0')}`,
+          numero: numeroAtual++,
+          nome: `Mesa Interna ${numeroAtual - 1}`,
           capacidade: 4,
-          tipo: 'interna'
+          tipo: 'interna',
+          status: 'livre'
         });
-        numeroAtual++;
       }
 
-      // Criar mesas externas
+      // Gerar mesas externas
       for (let i = 0; i < quantidades.externa; i++) {
         mesasParaCriar.push({
-          numero: numeroAtual.toString().padStart(2, '0'),
-          nome: `Mesa ${numeroAtual.toString().padStart(2, '0')} - Externa`,
+          numero: numeroAtual++,
+          nome: `Mesa Externa ${numeroAtual - 1}`,
           capacidade: 6,
-          tipo: 'externa'
+          tipo: 'externa',
+          status: 'livre'
         });
-        numeroAtual++;
       }
 
-      // Criar mesas VIP
+      // Gerar mesas VIP
       for (let i = 0; i < quantidades.vip; i++) {
         mesasParaCriar.push({
-          numero: `VIP${i + 1}`,
-          nome: `Mesa VIP ${i + 1}`,
+          numero: numeroAtual++,
+          nome: `Mesa VIP ${numeroAtual - 1}`,
           capacidade: 8,
-          tipo: 'vip'
+          tipo: 'vip',
+          status: 'livre'
         });
       }
 
-      // Criar balcões
+      // Gerar mesas de balcão
       for (let i = 0; i < quantidades.balcao; i++) {
         mesasParaCriar.push({
-          numero: `B${(i + 1).toString().padStart(2, '0')}`,
-          nome: `Balcão ${i + 1}`,
-          capacidade: 1,
-          tipo: 'balcao'
+          numero: numeroAtual++,
+          nome: `Balcão ${numeroAtual - 1}`,
+          capacidade: 2,
+          tipo: 'balcao',
+          status: 'livre'
         });
       }
 
-      for (const mesaData of mesasParaCriar) {
-        try {
-          await mesaService.create(mesaData);
-          mesasCriadas++;
-        } catch (error: any) {
-          if (error.response?.data?.message?.includes('Já existe uma mesa')) {
-            mesasJaExistentes++;
-          } else {
-            console.error(`Erro ao criar mesa ${mesaData.numero}:`, error);
-          }
-        }
+      // Criar todas as mesas
+      for (const mesa of mesasParaCriar) {
+        await mesaService.create(mesa);
       }
 
-      let mensagem = '';
-      if (mesasCriadas > 0) {
-        mensagem += `${mesasCriadas} mesas criadas com sucesso!`;
-      }
-      if (mesasJaExistentes > 0) {
-        if (mensagem) mensagem += '\n';
-        mensagem += `${mesasJaExistentes} mesas já existiam.`;
-      }
-
-      Alert.alert('Resultado', mensagem || 'Nenhuma mesa foi criada.');
-      await loadMesas();
+      Alert.alert('Sucesso', `${totalMesas} mesas criadas com sucesso!`);
       setGerarMesasModalVisible(false);
-      
-    } catch (error) {
+      await loadMesas();
+
+    } catch (error: any) {
       console.error('Erro ao gerar mesas:', error);
-      Alert.alert('Erro', 'Erro inesperado ao gerar mesas');
+      Alert.alert('Erro', 'Não foi possível gerar as mesas');
     } finally {
       setGerandoMesas(false);
     }
   };
 
-  const openProductSelector = async (mesa: Mesa) => {
+  // Função para abrir mesa
+  const abrirMesa = (mesa: Mesa) => {
+    setMesaSelecionada(mesa);
+    setFormAbrirMesa({
+      nomeResponsavel: '',
+      funcionarioResponsavel: '',
+      observacoes: ''
+    });
+    setAbrirMesaModalVisible(true);
+  };
+
+  // Função para confirmar abertura da mesa
+  const confirmarAbrirMesa = async () => {
+    if (!formAbrirMesa.nomeResponsavel.trim()) {
+      Alert.alert('Erro', 'Por favor, informe o nome do responsável');
+      return;
+    }
+
+    setAbindoMesa(true);
+
     try {
-      setSelectedMesa(mesa);
-      // Buscar ou criar venda para a mesa
-      const openSales = await saleService.getOpen();
-      let sale = openSales.data.find((s: any) => s.mesa === mesa._id);
+      const updateData = {
+        status: 'ocupada',
+        nomeResponsavel: formAbrirMesa.nomeResponsavel.trim(),
+        funcionarioResponsavel: formAbrirMesa.funcionarioResponsavel || undefined,
+        observacoes: formAbrirMesa.observacoes.trim() || undefined
+      };
+
+      await mesaService.update(mesaSelecionada!._id, updateData);
       
-      if (!sale) {
-        // Criar nova venda para a mesa
-        const newSaleData = {
-          funcionario: user?._id,
-          mesa: mesa._id,
-          tipoVenda: 'mesa',
-          status: 'aberta'
-        };
-        const response = await saleService.create(newSaleData);
-        sale = response.data;
+      Alert.alert('Sucesso', 'Mesa aberta com sucesso!');
+      setAbrirMesaModalVisible(false);
+      await loadMesas();
+
+    } catch (error: any) {
+      console.error('Erro ao abrir mesa:', error);
+      Alert.alert('Erro', 'Não foi possível abrir a mesa');
+    } finally {
+      setAbindoMesa(false);
+    }
+  };
+
+  // Função para fechar mesa
+  const fecharMesa = async (mesa: Mesa) => {
+    Alert.alert(
+      'Confirmar',
+      `Deseja realmente fechar a mesa ${mesa.numero}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Fechar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mesaService.update(mesa._id, {
+                status: 'livre',
+                nomeResponsavel: undefined,
+                funcionarioResponsavel: undefined,
+                observacoes: undefined
+              });
+              
+              Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
+              await loadMesas();
+            } catch (error) {
+              console.error('Erro ao fechar mesa:', error);
+              Alert.alert('Erro', 'Não foi possível fechar a mesa');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Função para liberar mesa
+  const liberarMesa = async (mesa: Mesa) => {
+    Alert.alert(
+      'Confirmar',
+      `Deseja liberar a mesa ${mesa.numero}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Liberar',
+          onPress: async () => {
+            try {
+              await mesaService.update(mesa._id, {
+                status: 'livre',
+                nomeResponsavel: undefined,
+                funcionarioResponsavel: undefined
+              });
+              
+              Alert.alert('Sucesso', 'Mesa liberada com sucesso!');
+              await loadMesas();
+            } catch (error) {
+              console.error('Erro ao liberar mesa:', error);
+              Alert.alert('Erro', 'Não foi possível liberar a mesa');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Função para adicionar produtos à mesa
+  const adicionarProdutos = (mesa: Mesa) => {
+    router.push({
+      pathname: '/sale',
+      params: { mesaId: mesa._id, mesaNumero: mesa.numero }
+    });
+  };
+
+  // Função para ver comanda da mesa
+  const verComanda = (mesa: Mesa) => {
+    router.push({
+      pathname: '/sale',
+      params: { mesaId: mesa._id, mesaNumero: mesa.numero, viewOnly: 'true' }
+    });
+  };
+
+  // Função para colocar mesa em manutenção
+  const colocarEmManutencao = async (mesa: Mesa) => {
+    Alert.alert(
+      'Manutenção',
+      `Colocar mesa ${mesa.numero} em manutenção?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              await mesaService.update(mesa._id, { status: 'manutencao' });
+              Alert.alert('Sucesso', 'Mesa colocada em manutenção');
+              await loadMesas();
+            } catch (error) {
+              console.error('Erro ao colocar mesa em manutenção:', error);
+              Alert.alert('Erro', 'Não foi possível colocar a mesa em manutenção');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Função para renderizar item da lista
+  const renderMesaItem = ({ item }: { item: Mesa }) => {
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'livre': return '#4CAF50';
+        case 'ocupada': return '#F44336';
+        case 'reservada': return '#FF9800';
+        case 'manutencao': return '#9E9E9E';
+        default: return '#9E9E9E';
       }
-      
-      setCurrentSale(sale);
-      setProductSelectorVisible(true);
-    } catch (error) {
-      console.error('Erro ao abrir seletor de produtos:', error);
-      Alert.alert('Erro', 'Não foi possível abrir o seletor de produtos');
-    }
-  };
+    };
 
-  const handleProductSelect = async (product: any, quantity: number) => {
-    try {
-      if (!currentSale) {
-        Alert.alert('Erro', 'Nenhuma venda ativa encontrada');
-        return;
+    const getStatusIcon = (status: string) => {
+      switch (status) {
+        case 'livre': return 'checkmark-circle';
+        case 'ocupada': return 'person';
+        case 'reservada': return 'time';
+        case 'manutencao': return 'construct';
+        default: return 'help-circle';
       }
+    };
 
-      await saleService.addItem(currentSale._id, {
-        produtoId: product._id,
-        quantidade: quantity
-      });
+    const getStatusText = (status: string) => {
+      switch (status) {
+        case 'livre': return 'Livre';
+        case 'ocupada': return 'Ocupada';
+        case 'reservada': return 'Reservada';
+        case 'manutencao': return 'Manutenção';
+        default: return 'Desconhecido';
+      }
+    };
 
-      Alert.alert(
-        'Sucesso', 
-        `${quantity}x ${product.nome} adicionado à mesa ${selectedMesa?.numero}!`
-      );
-      
-      setProductSelectorVisible(false);
-    } catch (error) {
-      console.error('Erro ao adicionar produto:', error);
-      Alert.alert('Erro', 'Não foi possível adicionar o produto');
-    }
-  };
-
-  const handleCloseProductSelector = () => {
-    setProductSelectorVisible(false);
-    setSelectedMesa(null);
-    setCurrentSale(null);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'livre':
-        return '#4CAF50';
-      case 'ocupada':
-        return '#F44336';
-      case 'reservada':
-        return '#FF9800';
-      case 'manutencao':
-        return '#9E9E9E';
-      default:
-        return '#9E9E9E';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'livre': return 'Livre';
-      case 'ocupada': return 'Ocupada';
-      case 'reservada': return 'Reservada';
-      case 'manutencao': return 'Manutenção';
-      default: return 'Desconhecido';
-    }
-  };
-
-  // Função para filtrar mesas
-  const mesasFiltradas = mesas.filter(mesa => {
-    // Filtro por status
-    const passaFiltroStatus = filtroStatus === 'todos' || mesa.status === filtroStatus;
-    
-    // Filtro por busca (número da mesa)
-    const passaFiltroBusca = textoBusca === '' || 
-      mesa.numero.toString().toLowerCase().includes(textoBusca.toLowerCase());
-    
-    return passaFiltroStatus && passaFiltroBusca;
-  });
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'livre':
-        return 'checkmark-circle';
-      case 'ocupada':
-        return 'people';
-      case 'reservada':
-        return 'time';
-      case 'manutencao':
-        return 'construct';
-      default:
-        return 'help-circle';
-    }
-  };
-
-  const renderMesa = ({ item }: { item: Mesa }) => (
-    <TouchableOpacity
-      style={[styles.mesaCard, { borderLeftColor: getStatusColor(item.status) }]}
-      onPress={() => handleMesaPress(item)}
-      activeOpacity={0.7}
-    >
+    return (
+      <View style={[styles.mesaCard, { borderLeftColor: getStatusColor(item.status) }]}>
         <View style={styles.mesaHeader}>
-          <Text style={styles.mesaNumero}>
-            Mesa {item.numero}
-            {(item.nomeResponsavel || item.funcionarioResponsavel?.nome) && 
-              ` - ${item.nomeResponsavel || item.funcionarioResponsavel?.nome}`}
-          </Text>
+          <Text style={styles.mesaNumero}>Mesa {item.numero}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Ionicons name={getStatusIcon(item.status) as any} size={16} color="#fff" />
+            <Ionicons name={getStatusIcon(item.status)} size={12} color="#fff" />
             <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
           </View>
         </View>
+
         <View style={styles.mesaInfo}>
           <View style={styles.infoRow}>
             <Ionicons name="people" size={16} color="#666" />
             <Text style={styles.infoText}>Capacidade: {item.capacidade} pessoas</Text>
           </View>
+          
+          {item.nomeResponsavel && (
+            <View style={styles.infoRow}>
+              <Ionicons name="person" size={16} color="#666" />
+              <Text style={styles.infoText}>Responsável: {item.nomeResponsavel}</Text>
+            </View>
+          )}
+          
+          {item.funcionarioResponsavel && (
+            <View style={styles.infoRow}>
+              <Ionicons name="briefcase" size={16} color="#666" />
+              <Text style={styles.infoText}>Funcionário: {item.funcionarioResponsavel.nome}</Text>
+            </View>
+          )}
+          
           {item.observacoes && (
             <View style={styles.infoRow}>
               <Ionicons name="document-text" size={16} color="#666" />
-              <Text style={styles.infoText}>{item.observacoes}</Text>
+              <Text style={styles.infoText}>Obs: {item.observacoes}</Text>
             </View>
           )}
         </View>
-        
-        {/* Botões de ação baseados no status */}
+
+        {item.status === 'manutencao' && (
+          <View style={styles.maintenanceInfo}>
+            <Ionicons name="warning" size={16} color="#FF9800" />
+            <Text style={styles.maintenanceText}>Mesa em manutenção</Text>
+          </View>
+        )}
+
         <View style={styles.actionButtons}>
-          {item.status === 'livre' && (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.openButton]}
-              onPress={() => openMesa(item)}
-            >
-              <Ionicons name="play" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Abrir Mesa</Text>
-            </TouchableOpacity>
-          )}
-          
-          {item.status === 'ocupada' && (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.addButton]}
-                onPress={() => openProductSelector(item)}
-              >
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>Produtos</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.viewButton]}
-                onPress={() => router.push(`/sale?mesaId=${item._id}&viewMode=view`)}
-              >
-                <Ionicons name="eye" size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>Ver Vendas</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.closeButton]}
-                onPress={() => closeMesa(item._id)}
-              >
-                <Ionicons name="close" size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          
-          {item.status === 'reservada' && (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
+          <View style={styles.buttonRow}>
+            {item.status === 'livre' && (
+              <TouchableOpacity
                 style={[styles.actionButton, styles.openButton]}
-                onPress={() => openMesa(item)}
+                onPress={() => abrirMesa(item)}
               >
-                <Ionicons name="play" size={16} color="#fff" />
+                <Ionicons name="play" size={12} color="#fff" />
                 <Text style={styles.actionButtonText}>Abrir</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.releaseButton]}
-                onPress={() => liberarReserva(item._id)}
-              >
-                <Ionicons name="lock-open-outline" size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>Liberar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          
-          {item.status === 'manutencao' && (
-            <View style={styles.maintenanceInfo}>
-              <Ionicons name="construct" size={16} color="#FF9800" />
-              <Text style={styles.maintenanceText}>Mesa em manutenção</Text>
-            </View>
-          )}
-        </View>
-       </TouchableOpacity>
-   );
+            )}
 
-  const mesasLivres = mesas.filter(m => m.status === 'livre').length;
-  const mesasOcupadas = mesas.filter(m => m.status === 'ocupada').length;
-  const mesasReservadas = mesas.filter(m => m.status === 'reservada').length;
+            {item.status === 'ocupada' && (
+              <>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.addButton]}
+                  onPress={() => adicionarProdutos(item)}
+                >
+                  <Ionicons name="add" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>Adicionar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.viewButton]}
+                  onPress={() => verComanda(item)}
+                >
+                  <Ionicons name="eye" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>Ver</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.closeButton]}
+                  onPress={() => fecharMesa(item)}
+                >
+                  <Ionicons name="stop" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>Fechar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {item.status === 'reservada' && (
+              <TouchableOpacity
+                  style={[styles.actionButton, styles.releaseButton]}
+                  onPress={() => liberarMesa(item)}
+                >
+                  <Ionicons name="lock-open" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>Liberar</Text>
+                </TouchableOpacity>
+            )}
+
+            {item.status !== 'manutencao' && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#9E9E9E' }]}
+                onPress={() => colocarEmManutencao(item)}
+              >
+                <Ionicons name="construct" size={12} color="#fff" />
+                <Text style={styles.actionButtonText}>Manutenção</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2196F3" />
+        <Text style={{ marginTop: 16, color: '#666' }}>Carregando mesas...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Barra de busca */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar mesa por número..."
-          value={textoBusca}
-          onChangeText={setTextoBusca}
-          keyboardType="numeric"
-        />
-      </View>
-
-      {/* Estatísticas */}
+      <ScreenIdentifier screenName="Mesas" />
+      {/* Header com estatísticas */}
       <View style={styles.statsContainer}>
         <View style={styles.statsLeft}>
-          <TouchableOpacity 
-            style={[
-              styles.statItem,
-              filtroStatus === 'livre' && styles.statItemSelected
-            ]}
-            onPress={() => setFiltroStatus(filtroStatus === 'livre' ? 'todos' : 'livre')}
+          <TouchableOpacity
+            style={[styles.statItem, selectedStatus === null && styles.statItemSelected]}
+            onPress={() => setSelectedStatus(null)}
           >
-            <Text style={styles.statNumber}>{mesasLivres}</Text>
+            <Text style={styles.statNumber}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+            <View style={[styles.statIndicator, { backgroundColor: '#2196F3' }]} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.statItem, selectedStatus === 'livre' && styles.statItemSelected]}
+            onPress={() => setSelectedStatus(selectedStatus === 'livre' ? null : 'livre')}
+          >
+            <Text style={styles.statNumber}>{stats.livres}</Text>
             <Text style={styles.statLabel}>Livres</Text>
             <View style={[styles.statIndicator, { backgroundColor: '#4CAF50' }]} />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[
-              styles.statItem,
-              filtroStatus === 'ocupada' && styles.statItemSelected
-            ]}
-            onPress={() => setFiltroStatus(filtroStatus === 'ocupada' ? 'todos' : 'ocupada')}
+
+          <TouchableOpacity
+            style={[styles.statItem, selectedStatus === 'ocupada' && styles.statItemSelected]}
+            onPress={() => setSelectedStatus(selectedStatus === 'ocupada' ? null : 'ocupada')}
           >
-            <Text style={styles.statNumber}>{mesasOcupadas}</Text>
+            <Text style={styles.statNumber}>{stats.ocupadas}</Text>
             <Text style={styles.statLabel}>Ocupadas</Text>
             <View style={[styles.statIndicator, { backgroundColor: '#F44336' }]} />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[
-              styles.statItem,
-              filtroStatus === 'reservada' && styles.statItemSelected
-            ]}
-            onPress={() => setFiltroStatus(filtroStatus === 'reservada' ? 'todos' : 'reservada')}
+
+          <TouchableOpacity
+            style={[styles.statItem, selectedStatus === 'reservada' && styles.statItemSelected]}
+            onPress={() => setSelectedStatus(selectedStatus === 'reservada' ? null : 'reservada')}
           >
-            <Text style={styles.statNumber}>{mesasReservadas}</Text>
+            <Text style={styles.statNumber}>{stats.reservadas}</Text>
             <Text style={styles.statLabel}>Reservadas</Text>
             <View style={[styles.statIndicator, { backgroundColor: '#FF9800' }]} />
           </TouchableOpacity>
         </View>
-        
-        {/* Botões de Ação */}
+
         <View style={styles.headerButtons}>
           <View style={styles.tooltipContainer}>
             <TouchableOpacity
-              style={[styles.headerButton, styles.headerButtonSecondary]}
+              style={styles.headerButton}
               onPress={abrirModalCriarMesa}
-              onPressIn={() => showTooltipWithDelay(setShowTooltipCriar, tooltipCriarTimer)}
-              onPressOut={() => hideTooltip(setShowTooltipCriar, tooltipCriarTimer)}
+              onPressIn={() => showTooltip('criar')}
+              onPressOut={hideTooltip}
             >
-              <Ionicons name="restaurant" size={18} color="#fff" />
+              <Ionicons name="add" size={20} color="#fff" />
             </TouchableOpacity>
-            {showTooltipCriar && (
+            {tooltipVisible === 'criar' && (
               <View style={[styles.tooltip, styles.tooltipVisible]}>
                 <Text style={styles.tooltipText}>Criar mesa individual</Text>
               </View>
             )}
           </View>
-          
+
           <View style={styles.tooltipContainer}>
             <TouchableOpacity
-              style={styles.headerButton}
+              style={[styles.headerButton, styles.headerButtonSecondary]}
               onPress={gerarMesas}
-              onPressIn={() => showTooltipWithDelay(setShowTooltipGerar, tooltipGerarTimer)}
-              onPressOut={() => hideTooltip(setShowTooltipGerar, tooltipGerarTimer)}
+              onPressIn={() => showTooltip('gerar')}
+              onPressOut={hideTooltip}
             >
               <Ionicons name="add" size={20} color="#fff" />
             </TouchableOpacity>
-            {showTooltipGerar && (
+            {tooltipVisible === 'gerar' && (
               <View style={[styles.tooltip, styles.tooltipVisible]}>
                 <Text style={styles.tooltipText}>Gerar várias mesas</Text>
               </View>
@@ -760,29 +705,37 @@ export default function MesasScreen() {
         </View>
       </View>
 
-      {/* Lista de Mesas */}
+      {/* Barra de pesquisa e filtros */}
+      <SearchAndFilter
+        searchText={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Pesquisar por número da mesa ou responsável..."
+        filters={statusFilters}
+        selectedFilter={selectedStatus || 'todas'}
+        onFilterChange={handleFilterChange}
+        showFilters={true}
+      />
+
+      {/* Lista de mesas */}
       <FlatList
-        data={mesasFiltradas}
-        renderItem={renderMesa}
+        data={filteredMesas}
+        renderItem={renderMesaItem}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', marginTop: 50 }}>
+            <Ionicons name="restaurant" size={64} color="#ccc" />
+            <Text style={{ color: '#666', marginTop: 16 }}>
+              {searchTerm || selectedStatus ? 'Nenhuma mesa encontrada' : 'Nenhuma mesa cadastrada'}
+            </Text>
+          </View>
+        }
       />
 
-
-
-      {/* Product Selector Modal */}
-      <ProductSelector
-        visible={productSelectorVisible}
-        onClose={handleCloseProductSelector}
-        onProductSelect={handleProductSelect}
-        title={selectedMesa ? `Adicionar à Mesa ${selectedMesa.numero}` : 'Selecionar Produto'}
-      />
-
-      {/* Modal de Geração Automática de Mesas */}
+      {/* Modal para gerar mesas */}
       <Modal
         visible={gerarMesasModalVisible}
         transparent={true}
@@ -794,151 +747,111 @@ export default function MesasScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Gerar Mesas Automaticamente</Text>
               <TouchableOpacity
-                onPress={() => setGerarMesasModalVisible(false)}
                 style={styles.modalCloseButton}
+                onPress={() => setGerarMesasModalVisible(false)}
               >
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalContent}>
               <Text style={styles.modalDescription}>
-                Defina a quantidade de mesas para cada tipo:
+                Defina a quantidade de mesas para cada tipo que deseja criar automaticamente:
               </Text>
-              
+
               <View style={styles.quantidadeContainer}>
                 <View style={styles.quantidadeItem}>
-                  <Text style={styles.quantidadeLabel}>Mesas Internas:</Text>
+                  <Text style={styles.quantidadeLabel}>Mesas Internas</Text>
                   <View style={styles.quantidadeControls}>
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        interna: Math.max(0, prev.interna - 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, interna: Math.max(0, prev.interna - 1) }))}
                     >
-                      <Ionicons name="remove" size={20} color="#666" />
+                      <Ionicons name="remove" size={16} color="#666" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
                       value={quantidades.interna.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 0;
-                        setQuantidades(prev => ({ ...prev, interna: Math.max(0, num) }));
-                      }}
+                      onChangeText={(text) => setQuantidades(prev => ({ ...prev, interna: parseInt(text) || 0 }))}
                       keyboardType="numeric"
-                      maxLength={2}
                     />
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        interna: Math.min(50, prev.interna + 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, interna: prev.interna + 1 }))}
                     >
-                      <Ionicons name="add" size={20} color="#666" />
+                      <Ionicons name="add" size={16} color="#666" />
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <View style={styles.quantidadeItem}>
-                  <Text style={styles.quantidadeLabel}>Mesas Externas:</Text>
+                  <Text style={styles.quantidadeLabel}>Mesas Externas</Text>
                   <View style={styles.quantidadeControls}>
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        externa: Math.max(0, prev.externa - 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, externa: Math.max(0, prev.externa - 1) }))}
                     >
-                      <Ionicons name="remove" size={20} color="#666" />
+                      <Ionicons name="remove" size={16} color="#666" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
                       value={quantidades.externa.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 0;
-                        setQuantidades(prev => ({ ...prev, externa: Math.max(0, num) }));
-                      }}
+                      onChangeText={(text) => setQuantidades(prev => ({ ...prev, externa: parseInt(text) || 0 }))}
                       keyboardType="numeric"
-                      maxLength={2}
                     />
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        externa: Math.min(50, prev.externa + 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, externa: prev.externa + 1 }))}
                     >
-                      <Ionicons name="add" size={20} color="#666" />
+                      <Ionicons name="add" size={16} color="#666" />
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <View style={styles.quantidadeItem}>
-                  <Text style={styles.quantidadeLabel}>Mesas VIP:</Text>
+                  <Text style={styles.quantidadeLabel}>Mesas VIP</Text>
                   <View style={styles.quantidadeControls}>
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        vip: Math.max(0, prev.vip - 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, vip: Math.max(0, prev.vip - 1) }))}
                     >
-                      <Ionicons name="remove" size={20} color="#666" />
+                      <Ionicons name="remove" size={16} color="#666" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
                       value={quantidades.vip.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 0;
-                        setQuantidades(prev => ({ ...prev, vip: Math.max(0, num) }));
-                      }}
+                      onChangeText={(text) => setQuantidades(prev => ({ ...prev, vip: parseInt(text) || 0 }))}
                       keyboardType="numeric"
-                      maxLength={2}
                     />
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        vip: Math.min(50, prev.vip + 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, vip: prev.vip + 1 }))}
                     >
-                      <Ionicons name="add" size={20} color="#666" />
+                      <Ionicons name="add" size={16} color="#666" />
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <View style={styles.quantidadeItem}>
-                  <Text style={styles.quantidadeLabel}>Balcões:</Text>
+                  <Text style={styles.quantidadeLabel}>Mesas de Balcão</Text>
                   <View style={styles.quantidadeControls}>
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        balcao: Math.max(0, prev.balcao - 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, balcao: Math.max(0, prev.balcao - 1) }))}
                     >
-                      <Ionicons name="remove" size={20} color="#666" />
+                      <Ionicons name="remove" size={16} color="#666" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
                       value={quantidades.balcao.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 0;
-                        setQuantidades(prev => ({ ...prev, balcao: Math.max(0, num) }));
-                      }}
+                      onChangeText={(text) => setQuantidades(prev => ({ ...prev, balcao: parseInt(text) || 0 }))}
                       keyboardType="numeric"
-                      maxLength={2}
                     />
                     <TouchableOpacity
                       style={styles.quantidadeButton}
-                      onPress={() => setQuantidades(prev => ({
-                        ...prev,
-                        balcao: Math.min(50, prev.balcao + 1)
-                      }))}
+                      onPress={() => setQuantidades(prev => ({ ...prev, balcao: prev.balcao + 1 }))}
                     >
-                      <Ionicons name="add" size={20} color="#666" />
+                      <Ionicons name="add" size={16} color="#666" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -949,12 +862,12 @@ export default function MesasScreen() {
                   Total: {quantidades.interna + quantidades.externa + quantidades.vip + quantidades.balcao} mesas
                 </Text>
               </View>
-              
+
               <Text style={styles.warningText}>
-                ⚠️ Mesas com números já existentes serão ignoradas.
+                As mesas serão numeradas automaticamente a partir do número 1
               </Text>
             </ScrollView>
-            
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -962,11 +875,10 @@ export default function MesasScreen() {
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={criarMesasAutomaticamente}
-                disabled={gerandoMesas || (quantidades.interna + quantidades.externa + quantidades.vip + quantidades.balcao) === 0}
+                disabled={gerandoMesas}
               >
                 {gerandoMesas ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -979,7 +891,7 @@ export default function MesasScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Criação Individual de Mesa */}
+      {/* Modal para criar mesa individual */}
       <Modal
         visible={criarMesaModalVisible}
         transparent={true}
@@ -991,44 +903,48 @@ export default function MesasScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Criar Nova Mesa</Text>
               <TouchableOpacity
-                onPress={fecharModalCriarMesa}
                 style={styles.modalCloseButton}
+                onPress={fecharModalCriarMesa}
               >
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalContent}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Número da Mesa *</Text>
+                <Text style={styles.formLabel}>
+                  Número da Mesa <Text style={styles.requiredField}>*</Text>
+                </Text>
                 <TextInput
                   style={styles.formInput}
                   value={formMesa.numero}
-                  onChangeText={(text) => setFormMesa({...formMesa, numero: text})}
-                  placeholder="Ex: 1, A1, VIP01"
-                  placeholderTextColor="#999"
+                  onChangeText={(text) => setFormMesa(prev => ({ ...prev, numero: text }))}
+                  placeholder="Ex: 1, 2, 3..."
+                  keyboardType="numeric"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nome da Mesa *</Text>
+                <Text style={styles.formLabel}>
+                  Nome da Mesa <Text style={styles.requiredField}>*</Text>
+                </Text>
                 <TextInput
                   style={styles.formInput}
                   value={formMesa.nome}
-                  onChangeText={(text) => setFormMesa({...formMesa, nome: text})}
-                  placeholder="Ex: Mesa Principal, Mesa da Janela"
-                  placeholderTextColor="#999"
+                  onChangeText={(text) => setFormMesa(prev => ({ ...prev, nome: text }))}
+                  placeholder="Ex: Mesa Principal, Mesa da Varanda..."
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Capacidade *</Text>
+                <Text style={styles.formLabel}>
+                  Capacidade <Text style={styles.requiredField}>*</Text>
+                </Text>
                 <TextInput
                   style={styles.formInput}
                   value={formMesa.capacidade}
-                  onChangeText={(text) => setFormMesa({...formMesa, capacidade: text})}
+                  onChangeText={(text) => setFormMesa(prev => ({ ...prev, capacidade: text }))}
                   placeholder="Número de pessoas"
-                  placeholderTextColor="#999"
                   keyboardType="numeric"
                 />
               </View>
@@ -1036,14 +952,14 @@ export default function MesasScreen() {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Tipo da Mesa</Text>
                 <View style={styles.tipoSelector}>
-                  {['interna', 'externa', 'vip', 'reservada', 'balcao'].map((tipo) => (
+                  {['interna', 'externa', 'vip', 'balcao'].map((tipo) => (
                     <TouchableOpacity
                       key={tipo}
                       style={[
                         styles.tipoOption,
                         formMesa.tipo === tipo && styles.tipoOptionSelected
                       ]}
-                      onPress={() => setFormMesa({...formMesa, tipo})}
+                      onPress={() => setFormMesa(prev => ({ ...prev, tipo }))}
                     >
                       <Text style={[
                         styles.tipoOptionText,
@@ -1059,17 +975,16 @@ export default function MesasScreen() {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Observações</Text>
                 <TextInput
-                  style={[styles.formInput, styles.textArea]}
+                  style={[styles.formInput, styles.textAreaSmall]}
                   value={formMesa.observacoes}
-                  onChangeText={(text) => setFormMesa({...formMesa, observacoes: text})}
-                  placeholder="Observações adicionais (opcional)"
-                  placeholderTextColor="#999"
+                  onChangeText={(text) => setFormMesa(prev => ({ ...prev, observacoes: text }))}
+                  placeholder="Observações sobre a mesa..."
                   multiline
                   numberOfLines={3}
                 />
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -1077,7 +992,6 @@ export default function MesasScreen() {
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={criarMesaIndividual}
@@ -1098,74 +1012,101 @@ export default function MesasScreen() {
       <Modal
         visible={abrirMesaModalVisible}
         transparent={true}
-        animationType="fade"
-        onRequestClose={() => limparEstadosModal()}
+        animationType="slide"
+        onRequestClose={() => setAbrirMesaModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Abrir Mesa {mesaSelecionada?.numero}</Text>
+              <Text style={styles.modalTitle}>
+                Abrir Mesa {mesaSelecionada?.numero}
+              </Text>
               <TouchableOpacity
-                onPress={() => {
-                  setAbrirMesaModalVisible(false);
-                  limparEstadosModal();
-                }}
                 style={styles.modalCloseButton}
+                onPress={() => setAbrirMesaModalVisible(false)}
               >
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
-            <View style={styles.modalContent}>
-              <Text style={styles.modalDescription}>
-                Preencha as informações para abrir a mesa:
-              </Text>
-              
+
+            <ScrollView style={styles.modalContent}>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>
+                  Nome do Responsável <Text style={styles.requiredField}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formAbrirMesa.nomeResponsavel}
+                  onChangeText={(text) => setFormAbrirMesa(prev => ({ ...prev, nomeResponsavel: text }))}
+                  placeholder="Nome do cliente responsável"
+                />
+              </View>
+
               <View style={styles.dropdownFormGroup}>
-                <Text style={styles.formLabel}>Funcionário Responsável *</Text>
+                <Text style={styles.formLabel}>Funcionário Responsável</Text>
                 <TouchableOpacity
                   style={styles.dropdownButton}
-                  onPress={() => setFuncionarioDropdownOpen(!funcionarioDropdownOpen)}
+                  onPress={() => setFuncionarioDropdownVisible(!funcionarioDropdownVisible)}
                 >
                   <Text style={[
                     styles.dropdownButtonText,
-                    !funcionarioSelecionado && styles.dropdownPlaceholder
+                    !formAbrirMesa.funcionarioResponsavel && styles.dropdownPlaceholder
                   ]}>
-                    {funcionarioSelecionado 
-                      ? funcionarios.find(f => f._id === funcionarioSelecionado)?.nome || 'Selecione um funcionário'
+                    {formAbrirMesa.funcionarioResponsavel
+                      ? funcionarios.find((f: Funcionario) => f._id === formAbrirMesa.funcionarioResponsavel)?.nome
                       : 'Selecione um funcionário'
                     }
                   </Text>
-                  <Ionicons 
-                    name={funcionarioDropdownOpen ? "chevron-up" : "chevron-down"} 
-                    size={20} 
-                    color="#666" 
+                  <Ionicons
+                    name={funcionarioDropdownVisible ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#666"
                   />
                 </TouchableOpacity>
-                
-                {funcionarioDropdownOpen && (
+
+                {funcionarioDropdownVisible && (
                   <View style={styles.dropdownList}>
-                    <ScrollView style={styles.dropdownScrollView} showsVerticalScrollIndicator={false}>
-                      {funcionarios.map((funcionario) => (
+                    <ScrollView style={styles.dropdownScrollView}>
+                      <TouchableOpacity
+                        style={[
+                          styles.dropdownItem,
+                          !formAbrirMesa.funcionarioResponsavel && styles.dropdownItemSelected
+                        ]}
+                        onPress={() => {
+                          setFormAbrirMesa(prev => ({ ...prev, funcionarioResponsavel: '' }));
+                          setFuncionarioDropdownVisible(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.dropdownItemText,
+                          !formAbrirMesa.funcionarioResponsavel && styles.dropdownItemTextSelected
+                        ]}>
+                          Nenhum funcionário
+                        </Text>
+                        {!formAbrirMesa.funcionarioResponsavel && (
+                          <Ionicons name="checkmark" size={16} color="#2196F3" />
+                        )}
+                      </TouchableOpacity>
+                      {funcionarios.map((funcionario: Funcionario) => (
                         <TouchableOpacity
                           key={funcionario._id}
                           style={[
                             styles.dropdownItem,
-                            funcionarioSelecionado === funcionario._id && styles.dropdownItemSelected
+                            formAbrirMesa.funcionarioResponsavel === funcionario._id && styles.dropdownItemSelected
                           ]}
                           onPress={() => {
-                            setFuncionarioSelecionado(funcionario._id);
-                            setFuncionarioDropdownOpen(false);
+                            setFormAbrirMesa(prev => ({ ...prev, funcionarioResponsavel: funcionario._id }));
+                            setFuncionarioDropdownVisible(false);
                           }}
                         >
                           <Text style={[
                             styles.dropdownItemText,
-                            funcionarioSelecionado === funcionario._id && styles.dropdownItemTextSelected
+                            formAbrirMesa.funcionarioResponsavel === funcionario._id && styles.dropdownItemTextSelected
                           ]}>
                             {funcionario.nome}
                           </Text>
-                          {funcionarioSelecionado === funcionario._id && (
-                            <Ionicons name="checkmark" size={18} color="#4CAF50" />
+                          {formAbrirMesa.funcionarioResponsavel === funcionario._id && (
+                            <Ionicons name="checkmark" size={16} color="#2196F3" />
                           )}
                         </TouchableOpacity>
                       ))}
@@ -1175,30 +1116,18 @@ export default function MesasScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nome do Responsável</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={responsavelMesa}
-                  onChangeText={setResponsavelMesa}
-                  placeholder="Digite o nome do responsável pela mesa"
-                  maxLength={100}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Observações</Text>
                 <TextInput
-                  style={[styles.formInput, styles.textAreaSmall]}
-                  value={observacoesMesa}
-                  onChangeText={setObservacoesMesa}
-                  placeholder="Observações sobre a mesa (opcional)"
-                  multiline={true}
-                  numberOfLines={2}
-                  maxLength={200}
+                  style={[styles.formInput, styles.textArea]}
+                  value={formAbrirMesa.observacoes}
+                  onChangeText={(text) => setFormAbrirMesa(prev => ({ ...prev, observacoes: text }))}
+                  placeholder="Observações sobre a abertura da mesa..."
+                  multiline
+                  numberOfLines={4}
                 />
               </View>
-            </View>
-            
+            </ScrollView>
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -1208,9 +1137,14 @@ export default function MesasScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
-                onPress={confirmarAberturaMesa}
+                onPress={confirmarAbrirMesa}
+                disabled={abindoMesa}
               >
-                <Text style={styles.confirmButtonText}>Abrir Mesa</Text>
+                {abindoMesa ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Abrir Mesa</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1297,23 +1231,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  searchContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#333',
-    backgroundColor: '#f9f9f9',
-  },
+
   statItem: {
     alignItems: 'center',
     position: 'relative',
@@ -1448,7 +1366,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1568,6 +1485,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
+  },
+  requiredField: {
+    color: '#d32f2f',
   },
   formInput: {
     borderWidth: 1,

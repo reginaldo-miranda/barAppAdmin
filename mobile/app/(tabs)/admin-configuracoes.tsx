@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { employeeService, userService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface Employee {
   _id: string;
@@ -58,7 +59,7 @@ export default function AdminConfiguracoesScreen() {
       setLoading(true);
       const response = await userService.getAll();
       setUsers(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar usuários:', error);
       Alert.alert('Erro', 'Erro ao carregar usuários');
     } finally {
@@ -83,7 +84,7 @@ export default function AdminConfiguracoesScreen() {
       Alert.alert('Sucesso', 'Permissões atualizadas com sucesso');
       setModalVisible(false);
       setSelectedUser(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar permissões:', error);
       Alert.alert('Erro', 'Erro ao salvar permissões');
     }
@@ -98,7 +99,7 @@ export default function AdminConfiguracoesScreen() {
       ));
       
       Alert.alert('Sucesso', `Usuário ${!currentStatus ? 'ativado' : 'desativado'} com sucesso`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao alterar status do usuário:', error);
       Alert.alert('Erro', 'Erro ao alterar status do usuário');
     }
@@ -205,6 +206,7 @@ export default function AdminConfiguracoesScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenIdentifier screenName="Admin - Configurações" />
       <ScrollView style={styles.content}>
         {/* Seção de Informações do Sistema */}
         <View style={styles.section}>

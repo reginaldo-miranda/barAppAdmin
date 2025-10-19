@@ -20,6 +20,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { productService, categoryService, typeService, unidadeMedidaService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
+import SearchAndFilter from '../../src/components/SearchAndFilter';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 const { width } = Dimensions.get('window');
 
@@ -73,6 +75,34 @@ export default function AdminProdutosScreen() {
   const [sortBy, setSortBy] = useState<'nome' | 'categoria' | 'preco'>('nome');
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
 
+  // Filtros para o SearchAndFilter
+  const categoryFilters = [
+    { key: '', label: 'Todas' },
+    ...categorias.map(categoria => ({ key: categoria.nome, label: categoria.nome }))
+  ];
+
+  const statusFilters = [
+    { key: '', label: 'Todos' },
+    { key: 'ativo', label: 'Ativos' },
+    { key: 'inativo', label: 'Inativos' }
+  ];
+
+  const handleFilterChange = (filterKey: string) => {
+    if (statusFilters.some(filter => filter.key === filterKey)) {
+      // É um filtro de status
+      if (filterKey === '') {
+        setFilterActive(null);
+      } else if (filterKey === 'ativo') {
+        setFilterActive(true);
+      } else if (filterKey === 'inativo') {
+        setFilterActive(false);
+      }
+    } else {
+      // É um filtro de categoria
+      setSelectedCategory(filterKey);
+    }
+  };
+
   // Form state
   const [formData, setFormData] = useState({
     nome: '',
@@ -110,7 +140,7 @@ export default function AdminProdutosScreen() {
       setLoading(true);
       const response = await productService.getAll();
       setProducts(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar produtos:', error);
       Alert.alert('Erro', 'Erro ao carregar produtos');
     } finally {
@@ -125,7 +155,7 @@ export default function AdminProdutosScreen() {
       console.log('📋 Categorias carregadas:', response.data);
       console.log('📊 Número de categorias:', response.data.length);
       setCategorias(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro ao carregar categorias:', error);
       Alert.alert('Erro', 'Erro ao carregar categorias');
     }
@@ -135,7 +165,7 @@ export default function AdminProdutosScreen() {
     try {
       const response = await typeService.getAll();
       setTipos(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar tipos:', error);
     }
   };
@@ -144,7 +174,7 @@ export default function AdminProdutosScreen() {
     try {
       const response = await unidadeMedidaService.getAll();
       setUnidades(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar unidades:', error);
     }
   };
@@ -241,7 +271,7 @@ export default function AdminProdutosScreen() {
               await productService.delete(product._id);
               Alert.alert('Sucesso', 'Produto excluído com sucesso');
               loadInitialData(); // Refresh completo dos dados
-            } catch (error) {
+            } catch (error: any) {
               console.error('Erro ao excluir produto:', error);
               Alert.alert('Erro', 'Erro ao excluir produto');
             }
@@ -375,22 +405,18 @@ export default function AdminProdutosScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Barra de busca principal */}
+      {/* Barra de busca e filtros */}
       <View style={styles.searchSection}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar produtos, categorias..."
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholderTextColor="#999"
+        <View style={{ flex: 1 }}>
+          <SearchAndFilter
+            searchText={searchText}
+            onSearchChange={setSearchText}
+            searchPlaceholder="Buscar produtos, categorias..."
+            filters={[...categoryFilters, ...statusFilters]}
+            selectedFilter={selectedCategory || (filterActive === null ? '' : filterActive ? 'ativo' : 'inativo')}
+            onFilterChange={handleFilterChange}
+            showFilters={true}
           />
-          {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText('')}>
-              <Ionicons name="close-circle" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
         </View>
         
         <TouchableOpacity
@@ -404,50 +430,8 @@ export default function AdminProdutosScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros e controles */}
+      {/* Controles de visualização */}
       <View style={styles.controlsSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
-          {/* Filtro por categoria */}
-          <TouchableOpacity
-            style={[styles.filterChip, selectedCategory === '' && styles.filterChipActive]}
-            onPress={() => setSelectedCategory('')}
-          >
-            <Text style={[styles.filterChipText, selectedCategory === '' && styles.filterChipTextActive]}>
-              Todas
-            </Text>
-          </TouchableOpacity>
-          
-          {categorias.map((categoria) => (
-            <TouchableOpacity
-              key={categoria._id}
-              style={[styles.filterChip, selectedCategory === categoria.nome && styles.filterChipActive]}
-              onPress={() => setSelectedCategory(selectedCategory === categoria.nome ? '' : categoria.nome)}
-            >
-              <Text style={[styles.filterChipText, selectedCategory === categoria.nome && styles.filterChipTextActive]}>
-                {categoria.nome}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          
-          {/* Filtro por status */}
-          <TouchableOpacity
-            style={[styles.filterChip, filterActive === true && styles.filterChipActive]}
-            onPress={() => setFilterActive(filterActive === true ? null : true)}
-          >
-            <Text style={[styles.filterChipText, filterActive === true && styles.filterChipTextActive]}>
-              Ativos
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.filterChip, filterActive === false && styles.filterChipActive]}
-            onPress={() => setFilterActive(filterActive === false ? null : false)}
-          >
-            <Text style={[styles.filterChipText, filterActive === false && styles.filterChipTextActive]}>
-              Inativos
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
         
         <View style={styles.viewControls}>
           {/* Ordenação */}
@@ -535,6 +519,7 @@ export default function AdminProdutosScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <ScreenIdentifier screenName="Admin - Produtos" />
       <View style={styles.container}>
         <FlatList
           data={filteredProducts}
@@ -606,12 +591,18 @@ export default function AdminProdutosScreen() {
                   <View style={styles.formGroup}>
                     <Text style={styles.label}>Nome do Produto *</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[
+                        styles.input,
+                        !formData.nome && styles.inputError
+                      ]}
                       value={formData.nome}
                       onChangeText={(value) => setFormData({ ...formData, nome: value })}
                       placeholder="Digite o nome do produto"
                       placeholderTextColor="#999"
                     />
+                    {!formData.nome && (
+                      <Text style={styles.errorText}>Nome é obrigatório</Text>
+                    )}
                   </View>
 
                   {/* Descrição */}
@@ -644,21 +635,34 @@ export default function AdminProdutosScreen() {
                     <View style={[styles.formGroup, styles.halfWidth]}>
                       <Text style={styles.label}>Preço de Venda *</Text>
                       <TextInput
-                        style={styles.input}
+                        style={[
+                          styles.input,
+                          !formData.precoVenda && styles.inputError
+                        ]}
                         value={formData.precoVenda}
                         onChangeText={(value) => setFormData({ ...formData, precoVenda: value })}
                         placeholder="0,00"
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                       />
+                      {!formData.precoVenda && (
+                        <Text style={styles.errorText}>Preço é obrigatório</Text>
+                      )}
                     </View>
                   </View>
 
                   {/* Categoria */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.label}>Categoria</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={styles.categoryContainer}>
+                    <Text style={styles.label}>Categoria *</Text>
+                    <View style={[
+                      styles.selectContainer,
+                      !formData.categoria && styles.selectContainerError
+                    ]}>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.categoryScrollContent}
+                      >
                         {(() => {
                           console.log('🔍 Renderizando categorias. Total:', categorias.length);
                           console.log('📋 Lista de categorias:', categorias);
@@ -667,8 +671,8 @@ export default function AdminProdutosScreen() {
                             <TouchableOpacity
                               key={categoria._id}
                               style={[
-                                styles.categoryButton,
-                                formData.categoria === categoria.nome && styles.categoryButtonActive
+                                styles.selectButton,
+                                formData.categoria === categoria.nome && styles.selectButtonActive
                               ]}
                               onPress={() => {
                                 console.log('🎯 Categoria selecionada:', categoria.nome);
@@ -679,67 +683,76 @@ export default function AdminProdutosScreen() {
                               }}
                             >
                               <Text style={[
-                                styles.categoryButtonText,
-                                formData.categoria === categoria.nome && styles.categoryButtonTextActive
+                                styles.selectButtonText,
+                                formData.categoria === categoria.nome && styles.selectButtonTextActive
                               ]}>
                                 {categoria.nome}
                               </Text>
                             </TouchableOpacity>
                           ));
                         })()}
-                      </View>
-                    </ScrollView>
+                      </ScrollView>
+                    </View>
                   </View>
 
                   {/* Tipo e Unidade */}
                   <View style={styles.row}>
                     <View style={[styles.formGroup, styles.halfWidth]}>
                       <Text style={styles.label}>Tipo</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={styles.categoryContainer}>
+                      <View style={styles.selectContainer}>
+                        <ScrollView 
+                          horizontal 
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.categoryScrollContent}
+                        >
                           {tipos.map((tipo) => (
                             <TouchableOpacity
                               key={tipo._id}
                               style={[
-                                styles.categoryButton,
-                                formData.tipo === tipo.nome && styles.categoryButtonActive
+                                styles.selectButton,
+                                formData.tipo === tipo.nome && styles.selectButtonActive
                               ]}
                               onPress={() => setFormData({ ...formData, tipo: tipo.nome })}
                             >
                               <Text style={[
-                                styles.categoryButtonText,
-                                formData.tipo === tipo.nome && styles.categoryButtonTextActive
+                                styles.selectButtonText,
+                                formData.tipo === tipo.nome && styles.selectButtonTextActive
                               ]}>
                                 {tipo.nome}
                               </Text>
                             </TouchableOpacity>
                           ))}
-                        </View>
-                      </ScrollView>
+                        </ScrollView>
+                      </View>
                     </View>
+                    
                     <View style={[styles.formGroup, styles.halfWidth]}>
                       <Text style={styles.label}>Unidade</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={styles.categoryContainer}>
+                      <View style={styles.selectContainer}>
+                        <ScrollView 
+                          horizontal 
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.categoryScrollContent}
+                        >
                           {unidades.map((unidade) => (
                             <TouchableOpacity
                               key={unidade._id}
                               style={[
-                                styles.categoryButton,
-                                formData.unidade === unidade.sigla && styles.categoryButtonActive
+                                styles.selectButton,
+                                formData.unidade === unidade.sigla && styles.selectButtonActive
                               ]}
                               onPress={() => setFormData({ ...formData, unidade: unidade.sigla })}
                             >
                               <Text style={[
-                                styles.categoryButtonText,
-                                formData.unidade === unidade.sigla && styles.categoryButtonTextActive
+                                styles.selectButtonText,
+                                formData.unidade === unidade.sigla && styles.selectButtonTextActive
                               ]}>
                                 {unidade.sigla}
                               </Text>
                             </TouchableOpacity>
                           ))}
-                        </View>
-                      </ScrollView>
+                        </ScrollView>
+                      </View>
                     </View>
                   </View>
 
@@ -811,24 +824,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginRight: 12,
-    height: 48,
-  },
-  searchIcon: {
-    marginRight: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
+
   addButton: {
     backgroundColor: '#2196F3',
     width: 48,
@@ -845,30 +841,7 @@ const styles = StyleSheet.create({
   controlsSection: {
     paddingHorizontal: 16,
   },
-  filtersScroll: {
-    marginBottom: 12,
-  },
-  filterChip: {
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  filterChipActive: {
-    backgroundColor: '#2196F3',
-    borderColor: '#2196F3',
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  filterChipTextActive: {
-    color: '#fff',
-  },
+
   viewControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1127,6 +1100,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     color: '#333',
   },
+  inputError: {
+    borderColor: '#f44336',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#f44336',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
@@ -1137,6 +1120,47 @@ const styles = StyleSheet.create({
   },
   halfWidth: {
     width: '48%',
+  },
+  selectContainer: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  selectContainerError: {
+    borderColor: '#f44336',
+    borderWidth: 2,
+  },
+  categoryScrollContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  selectButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  selectButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#2196F3',
+  },
+  selectButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  selectButtonTextActive: {
+    color: '#fff',
   },
   categoryContainer: {
     flexDirection: 'row',

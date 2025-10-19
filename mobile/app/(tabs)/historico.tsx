@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { saleService } from '../../src/services/api';
+import SearchAndFilter from '../../src/components/SearchAndFilter';
+import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface Sale {
   id: number;
@@ -58,7 +60,7 @@ export default function HistoricoScreen() {
       );
       setSales(finishedSales);
       applyFilters(finishedSales, typeFilter, dateFilter, searchText);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar vendas:', error);
       Alert.alert('Erro', 'Não foi possível carregar o histórico de vendas');
     } finally {
@@ -99,25 +101,32 @@ export default function HistoricoScreen() {
         );
         break;
       case 'week':
-        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
         filtered = filtered.filter(sale => 
           new Date(sale.createdAt) >= weekAgo
         );
         break;
       case 'month':
-        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
         filtered = filtered.filter(sale => 
           new Date(sale.createdAt) >= monthAgo
         );
+        break;
+      case 'all':
+      default:
         break;
     }
 
     // Filtro por busca
     if (search.trim()) {
+      const searchLower = search.toLowerCase();
       filtered = filtered.filter(sale => 
-        sale.numero.toLowerCase().includes(search.toLowerCase()) ||
-        (sale.customerName && sale.customerName.toLowerCase().includes(search.toLowerCase())) ||
-        sale.employeeName.toLowerCase().includes(search.toLowerCase())
+        sale.numero.toLowerCase().includes(searchLower) ||
+        (sale.customerName && sale.customerName.toLowerCase().includes(searchLower)) ||
+        sale.employeeName.toLowerCase().includes(searchLower) ||
+        (sale.mesaNumero && sale.mesaNumero.toString().includes(searchLower))
       );
     }
 
@@ -215,17 +224,6 @@ export default function HistoricoScreen() {
     </TouchableOpacity>
   );
 
-  const renderFilterButton = (filter: FilterType, label: string) => (
-    <TouchableOpacity
-      style={[styles.filterButton, typeFilter === filter && styles.activeFilterButton]}
-      onPress={() => setTypeFilter(filter)}
-    >
-      <Text style={[styles.filterButtonText, typeFilter === filter && styles.activeFilterButtonText]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-
   const renderDateFilterButton = (filter: DateFilter, label: string) => (
     <TouchableOpacity
       style={[styles.dateFilterButton, dateFilter === filter && styles.activeDateFilterButton]}
@@ -237,6 +235,18 @@ export default function HistoricoScreen() {
     </TouchableOpacity>
   );
 
+  // Configuração dos filtros para o componente SearchAndFilter
+  const typeFilters = [
+    { key: 'all', label: 'Todos' },
+    { key: 'mesa', label: 'Mesa' },
+    { key: 'balcao', label: 'Balcão' },
+    { key: 'comanda', label: 'Comanda' },
+  ];
+
+  const handleFilterChange = (filterKey: string) => {
+    setTypeFilter(filterKey as FilterType);
+  };
+
   // Estatísticas
   const totalSales = filteredSales.length;
   const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
@@ -244,6 +254,7 @@ export default function HistoricoScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenIdentifier screenName="Histórico" />
       {/* Estatísticas */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
@@ -268,24 +279,15 @@ export default function HistoricoScreen() {
         {renderDateFilterButton('all', 'Todos')}
       </ScrollView>
 
-      {/* Busca */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por número, cliente ou funcionário..."
-          value={searchText}
-          onChangeText={setSearchText}
-        />
-      </View>
-
-      {/* Filtros de Tipo */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-        {renderFilterButton('all', 'Todos')}
-        {renderFilterButton('mesa', 'Mesa')}
-        {renderFilterButton('balcao', 'Balcão')}
-        {renderFilterButton('comanda', 'Comanda')}
-      </ScrollView>
+      {/* Busca e Filtros de Tipo */}
+      <SearchAndFilter
+        searchText={searchText}
+        onSearchChange={setSearchText}
+        searchPlaceholder="Buscar por número, cliente ou funcionário..."
+        filters={typeFilters}
+        selectedFilter={typeFilter}
+        onFilterChange={handleFilterChange}
+      />
 
       {/* Lista de Vendas */}
       <FlatList
@@ -348,6 +350,12 @@ export default function HistoricoScreen() {
                       {new Date(selectedSale.createdAt).toLocaleString('pt-BR')}
                     </Text>
                   </View>
+                  {selectedSale.mesaNumero && (
+                    <View style={styles.infoItem}>
+                      <Text style={styles.infoLabel}>Mesa:</Text>
+                      <Text style={styles.infoValue}>{selectedSale.mesaNumero}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -423,53 +431,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    margin: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
-  },
-  filtersContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  activeFilterButton: {
-    backgroundColor: '#2196F3',
-    borderColor: '#2196F3',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  activeFilterButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+
   listContainer: {
     paddingHorizontal: 16,
   },

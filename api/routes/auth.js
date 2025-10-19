@@ -47,7 +47,7 @@ router.post("/login", async (req, res) => {
         message: "Login bem-sucedido", 
         token: "admin-token-123", // Token fictício para o admin
         user: { 
-          id: "admin-fixo", 
+          _id: "admin-fixo", 
           email: adminFixo.email, 
           nome: adminFixo.name, 
           tipo: "admin",
@@ -70,7 +70,7 @@ router.post("/login", async (req, res) => {
     const senhaCorreta = await bcrypt.compare(senhaInput, user.senha);
     if (!senhaCorreta) return res.status(400).json({ error: "Senha incorreta" });
 
-    res.json({ message: "Login bem-sucedido", user: { id: user._id, email: user.email } });
+    res.json({ message: "Login bem-sucedido", user: { _id: user._id, email: user.email, nome: user.nome || user.name, tipo: user.tipo || "funcionario" } });
   } catch (error) {
     res.status(500).json({ error: "Erro no login" });
   }
