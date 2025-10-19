@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndi
 import { useFocusEffect } from 'expo-router';
 import CriarComandaModal from '../../src/components/CriarComandaModal';
 import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
-import { comandaService } from '../../src/services/api';
+import SearchAndFilter from '../../src/components/SearchAndFilter';
+import { comandaService, employeeService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Comanda } from '../../src/types/index';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
@@ -13,25 +14,79 @@ export default function ComandasAbertasScreen() {
   const [produtosModalVisible, setProdutosModalVisible] = useState(false);
   const [comandaSelecionada, setComandaSelecionada] = useState<any>(null);
   const [comandas, setComandas] = useState<Comanda[]>([]);
+  const [filteredComandas, setFilteredComandas] = useState<Comanda[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados para filtros (igual à tela de produtos)
+  const [searchText, setSearchText] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('');
+  const [statusFilters, setStatusFilters] = useState<any[]>([]);
+  
   const { user } = useAuth() as any;
+
+  useEffect(() => {
+    loadStatusFilters();
+  }, []);
+
+  // Aplicar filtros sempre que os dados ou filtros mudarem (igual à tela de produtos)
+  useEffect(() => {
+    filterComandas();
+  }, [searchText, comandas, selectedFilter]);
+
+  const loadStatusFilters = () => {
+    // Configuração dos filtros de status igual à tela de produtos
+    const filters = [
+      { key: '', label: 'Todas', icon: 'apps' },
+      { key: 'aberta', label: 'Abertas', icon: 'checkmark-circle' },
+      { key: 'fechada', label: 'Fechadas', icon: 'close-circle' },
+      { key: 'cancelada', label: 'Canceladas', icon: 'ban' }
+    ];
+    setStatusFilters(filters);
+  };
 
   const loadComandas = async () => {
     try {
       setLoading(true);
       const response = await comandaService.getAll();
       console.log('Resposta da API:', response.data);
-      // Filtrar apenas comandas abertas do tipo comanda (igual ao frontend web)
-      const comandasAbertas = response.data?.filter((venda: Comanda) => 
-        venda.tipoVenda === 'comanda' && venda.status === 'aberta'
+      // Carregar todas as comandas do tipo comanda (não apenas abertas para permitir filtros)
+      const todasComandas = response.data?.filter((venda: Comanda) => 
+        venda.tipoVenda === 'comanda'
       ) || [];
-      setComandas(comandasAbertas);
+      setComandas(todasComandas);
     } catch (error: any) {
       console.error('Erro ao carregar comandas:', error);
-      Alert.alert('Erro', 'Não foi possível carregar as comandas abertas.');
+      Alert.alert('Erro', 'Não foi possível carregar as comandas.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Lógica de filtragem igual à tela de produtos
+  const filterComandas = () => {
+    let filtered = comandas;
+
+    // Filtro por status (igual à tela de produtos)
+    if (selectedFilter) {
+      filtered = filtered.filter(comanda => comanda.status === selectedFilter);
+    }
+
+    // Filtro por texto de busca (igual à tela de produtos)
+    if (searchText.trim()) {
+      filtered = filtered.filter(comanda =>
+        (comanda.nomeComanda && comanda.nomeComanda.toLowerCase().includes(searchText.toLowerCase())) ||
+        (comanda.numeroComanda && comanda.numeroComanda.toLowerCase().includes(searchText.toLowerCase())) ||
+        (comanda.funcionario?.nome && comanda.funcionario.nome.toLowerCase().includes(searchText.toLowerCase())) ||
+        (comanda.cliente?.nome && comanda.cliente.nome.toLowerCase().includes(searchText.toLowerCase()))
+      );
+    }
+
+    setFilteredComandas(filtered);
+  };
+
+  // Função de mudança de filtro igual à tela de produtos
+  const handleFilterChange = (filterKey: string) => {
+    setSelectedFilter(filterKey);
   };
 
   useFocusEffect(
@@ -99,13 +154,55 @@ export default function ComandasAbertasScreen() {
     }
   };
 
+  // Função para obter a cor do status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'aberta':
+        return '#4CAF50';
+      case 'fechada':
+        return '#2196F3';
+      case 'cancelada':
+        return '#f44336';
+      default:
+        return '#666';
+    }
+  };
+
+  // Função para obter o texto do status
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'aberta':
+        return 'Aberta';
+      case 'fechada':
+        return 'Fechada';
+      case 'cancelada':
+        return 'Cancelada';
+      default:
+        return status;
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScreenIdentifier screenName="Comandas" />
-      <Text style={styles.title}>Comandas Abertas</Text>
-      <TouchableOpacity style={styles.button} onPress={handleOpenModal}>
-        <Text style={styles.buttonText}>Nova Comanda</Text>
-      </TouchableOpacity>
+      
+      {/* Componente de busca e filtros igual à tela de produtos */}
+      <SearchAndFilter
+        searchText={searchText}
+        onSearchChange={setSearchText}
+        searchPlaceholder="Buscar comandas..."
+        filters={statusFilters}
+        selectedFilter={selectedFilter}
+        onFilterChange={handleFilterChange}
+      />
+      
+      <View style={styles.header}>
+        <Text style={styles.title}>Comandas</Text>
+        <TouchableOpacity style={styles.button} onPress={handleOpenModal}>
+          <Text style={styles.buttonText}>Nova Comanda</Text>
+        </TouchableOpacity>
+      </View>
+      
       <CriarComandaModal
         visible={modalVisible}
         onClose={handleCloseModal}
@@ -118,11 +215,12 @@ export default function ComandasAbertasScreen() {
         comanda={comandaSelecionada}
         onUpdateComanda={handleUpdateComanda}
       />
+      
       {loading ? (
         <ActivityIndicator size="large" color="#2196F3" />
       ) : (
         <FlatList
-          data={comandas}
+          data={filteredComandas}
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => (
             <TouchableOpacity 
@@ -130,8 +228,16 @@ export default function ComandasAbertasScreen() {
               onPress={() => handleOpenProdutosModal(item)}
             >
               <View style={styles.comandaInfo}>
-                <Text style={styles.comandaNome}>{item.nomeComanda || 'Sem nome'}</Text>
+                <View style={styles.comandaHeader}>
+                  <Text style={styles.comandaNome}>{item.nomeComanda || item.numeroComanda || 'Sem nome'}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+                    <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+                  </View>
+                </View>
                 <Text style={styles.comandaFuncionario}>Funcionário: {item.funcionario?.nome || 'Não definido'}</Text>
+                {item.cliente?.nome && (
+                  <Text style={styles.comandaCliente}>Cliente: {item.cliente.nome}</Text>
+                )}
                 <Text style={styles.comandaItens}>{item.itens?.length || 0} itens</Text>
               </View>
               <View style={styles.comandaTotal}>
@@ -139,8 +245,13 @@ export default function ComandasAbertasScreen() {
               </View>
             </TouchableOpacity>
           )}
-          ListEmptyComponent={<Text>Nenhuma comanda aberta.</Text>}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Nenhuma comanda encontrada.</Text>
+            </View>
+          }
           style={styles.list}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </View>
@@ -150,19 +261,28 @@ export default function ComandasAbertasScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#333',
   },
   button: {
     backgroundColor: '#2196F3',
-    padding: 15,
-    borderRadius: 5,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
   },
   buttonText: {
     color: 'white',
@@ -170,18 +290,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   list: {
-    width: '100%',
-    marginTop: 20,
+    flex: 1,
+  },
+  listContent: {
+    padding: 16,
   },
   comandaItem: {
     backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '90%',
-    alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -193,13 +313,35 @@ const styles = StyleSheet.create({
   comandaInfo: {
     flex: 1,
   },
+  comandaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   comandaNome: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   comandaFuncionario: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  comandaCliente: {
     fontSize: 14,
     color: '#666',
     marginBottom: 2,
@@ -211,10 +353,22 @@ const styles = StyleSheet.create({
   comandaTotal: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 16,
   },
   comandaValor: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2196F3',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });

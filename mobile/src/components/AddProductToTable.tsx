@@ -34,16 +34,22 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
   isViewMode = false,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [productSelectorVisible, setProductSelectorVisible] = useState(false);
 
   useEffect(() => {
     loadProducts();
     loadCategories();
   }, []);
+
+  // Aplicar filtros sempre que os dados ou filtros mudarem
+  useEffect(() => {
+    filterProducts();
+  }, [searchText, products, selectedCategory]);
 
   const loadProducts = async () => {
     try {
@@ -65,11 +71,13 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
       console.log('📦 Carregando categorias do banco...');
       const data = await categoryService.getAll();
       
+      // Configuração dos filtros de categoria igual à tela de produtos
       const categoryFilters = [
-        { key: 'todos', label: 'Todos' },
-        ...data.map((cat: any) => ({
-          key: cat._id,
-          label: cat.nome
+        { key: '', label: 'Todas', icon: 'apps' },
+        ...data.map((categoria: any) => ({
+          key: categoria.nome,
+          label: categoria.nome,
+          icon: 'pricetag'
         }))
       ];
       
@@ -80,30 +88,40 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
       // Fallback para categorias padrão apenas em caso de erro
       console.log('⚠️ Usando categorias padrão como fallback');
       setCategories([
-        { key: 'todos', label: 'Todos' },
-        { key: 'bebidas-alcoolicas', label: 'Bebidas Alcoólicas' },
-        { key: 'bebidas-nao-alcoolicas', label: 'Bebidas Não Alcoólicas' },
-        { key: 'pratos-principais', label: 'Pratos Principais' },
-        { key: 'aperitivos', label: 'Aperitivos' },
-        { key: 'sobremesas', label: 'Sobremesas' },
+        { key: '', label: 'Todas', icon: 'apps' },
+        { key: 'bebidas-alcoolicas', label: 'Bebidas Alcoólicas', icon: 'pricetag' },
+        { key: 'bebidas-nao-alcoolicas', label: 'Bebidas Não Alcoólicas', icon: 'pricetag' },
+        { key: 'pratos-principais', label: 'Pratos Principais', icon: 'pricetag' },
+        { key: 'aperitivos', label: 'Aperitivos', icon: 'pricetag' },
+        { key: 'sobremesas', label: 'Sobremesas', icon: 'pricetag' },
       ]);
     }
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.nome.toLowerCase().includes(searchText.toLowerCase()) ||
-                         product.descricao?.toLowerCase().includes(searchText.toLowerCase());
-    
-    // Filtro de categoria corrigido
-    let matchesCategory = true;
-    if (selectedCategory !== 'todos') {
-      // Verifica se o produto pertence à categoria selecionada (por ID ou nome)
-      matchesCategory = product.categoria === selectedCategory || 
-                       product.categoria?.toLowerCase() === selectedCategory.toLowerCase();
+  // Lógica de filtragem igual à tela de produtos
+  const filterProducts = () => {
+    let filtered = products;
+
+    // Filtro por categoria (igual à tela de produtos)
+    if (selectedCategory) {
+      filtered = filtered.filter(produto => produto.categoria === selectedCategory);
     }
-    
-    return matchesSearch && matchesCategory && product.ativo && product.disponivel;
-  });
+
+    // Filtro por texto de busca (igual à tela de produtos)
+    if (searchText.trim()) {
+      filtered = filtered.filter(produto =>
+        produto.nome.toLowerCase().includes(searchText.toLowerCase()) ||
+        produto.categoria.toLowerCase().includes(searchText.toLowerCase()) ||
+        (produto.grupo && produto.grupo.toLowerCase().includes(searchText.toLowerCase())) ||
+        (produto.descricao && produto.descricao.toLowerCase().includes(searchText.toLowerCase()))
+      );
+    }
+
+    // Filtrar apenas produtos ativos e disponíveis
+    filtered = filtered.filter(produto => produto.ativo && produto.disponivel);
+
+    setFilteredProducts(filtered);
+  };
 
   const handleProductSelect = (product: Product) => {
     console.log('🟢 Produto selecionado:', product.nome);
@@ -122,14 +140,9 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
     }
   };
 
-  const handleCategorySelect = (categoryKey: string) => {
-    console.log('🏷️ Categoria selecionada:', categoryKey);
-    setSelectedCategory(categoryKey);
-  };
-
+  // Função de mudança de filtro igual à tela de produtos
   const handleFilterChange = (filterKey: string) => {
     setSelectedCategory(filterKey);
-    console.log('🏷️ Filtro de categoria alterado:', filterKey);
   };
 
   const handleProductSelectorSelect = (product: Product, quantity: number) => {
