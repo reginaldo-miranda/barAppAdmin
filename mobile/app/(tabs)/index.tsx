@@ -29,13 +29,13 @@ export default function HomeScreen() {
     try {
       const [salesResponse, mesasResponse] = await Promise.all([
         saleService.getAll(),
-        mesaService.getAll(),
+        mesaService.list(),
       ]);
 
       const today = new Date().toDateString();
       
       // Filtrar todas as vendas/comandas de hoje
-      const todaySales = salesResponse.data.filter(
+      const todaySales = (salesResponse?.data || []).filter(
         (sale: any) =>
           new Date(sale.createdAt).toDateString() === today
       );
@@ -54,12 +54,12 @@ export default function HomeScreen() {
       );
 
       // Contar mesas ocupadas
-      const openTables = mesasResponse.data.filter(
+      const openTables = (mesasResponse?.data || []).filter(
         (mesa: any) => mesa.status === 'ocupada'
       ).length;
 
       // Contar TODAS as comandas abertas (não apenas do dia)
-      const allComandas = salesResponse.data.filter((sale: any) => 
+      const allComandas = (salesResponse?.data || []).filter((sale: any) => 
         sale.tipoVenda === 'comanda'
       );
       
@@ -170,7 +170,7 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Vendas</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
-            <Ionicons name="cash" size={24} color="#2196F3" />
+            <Ionicons name="cash" size={24} color="#FF0000" />
             <Text style={styles.statNumber}>R$ {stats.totalRevenue.toFixed(2)}</Text>
             <Text style={styles.statLabel}>Faturamento</Text>
           </View>

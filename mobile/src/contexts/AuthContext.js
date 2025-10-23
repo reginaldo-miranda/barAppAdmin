@@ -10,6 +10,7 @@ const defaultAuthContext = {
   login: async (credentials) => ({ success: false, message: 'Contexto não inicializado' }),
   logout: async () => {},
   hasPermission: () => false,
+  clearAllStorage: async () => {},
 };
 
 const AuthContext = createContext(defaultAuthContext);
@@ -27,8 +28,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  console.log('🚀 AuthProvider: Inicializando com loading:', loading, 'isAuthenticated:', isAuthenticated);
+
   // Verificar se há usuário logado ao inicializar
   useEffect(() => {
+    console.log('🚀 AuthProvider: useEffect executado - chamando checkAuthState');
     checkAuthState();
   }, []);
 
@@ -46,31 +50,61 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       console.log('🔍 AuthContext: Verificando estado de autenticação...');
       
-      // Limpar dados antigos primeiro
-      await clearAllData();
+      // Verificar se AsyncStorage está disponível
+      if (!AsyncStorage) {
+        console.log('🔍 AuthContext: AsyncStorage não disponível - assumindo não autenticado');
+        setIsAuthenticated(false);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      const token = await AsyncStorage.getItem('authToken');
+      const userData = await AsyncStorage.getItem('userData');
       
-      // Forçar estado não autenticado
-      setIsAuthenticated(false);
-      setUser(null);
-      console.log('🔍 AuthContext: Estado limpo - usuário não autenticado');
+      console.log('🔍 AuthContext: Token encontrado:', !!token);
+      console.log('🔍 AuthContext: UserData encontrado:', !!userData);
+
+      if (token && userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+          console.log('🔍 AuthContext: Sessão restaurada para usuário:', parsedUser?.email || parsedUser?.nome);
+        } catch (parseError) {
+          console.error('🔍 AuthContext: Erro ao fazer parse dos dados do usuário:', parseError);
+          // Limpar dados corrompidos
+          await AsyncStorage.removeItem('authToken');
+          await AsyncStorage.removeItem('userData');
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+        console.log('🔍 AuthContext: Nenhuma sessão ativa encontrada - redirecionando para login');
+      }
     } catch (error) {
       console.error('🔍 AuthContext: Erro ao verificar autenticação:', error);
       setIsAuthenticated(false);
       setUser(null);
     } finally {
       setLoading(false);
-      console.log('🔍 AuthContext: Verificação de autenticação concluída');
+      console.log('🔍 AuthContext: Verificação concluída');
     }
   };
 
   const login = async (credentials) => {
     try {
-      console.log('🔐 AuthContext: Iniciando login...');
+      console.log('🔐 AuthContext: Iniciando login com:', credentials.email);
       setLoading(true);
-      const response = await authService.login(credentials);
-      console.log('🔐 AuthContext: Resposta do login:', response.data);
       
-      if (response.data.token) {
+      const response = await authService.login(credentials);
+      console.log('🔐 AuthContext: Resposta completa do login:', response);
+      console.log('🔐 AuthContext: Status da resposta:', response.status);
+      console.log('🔐 AuthContext: Dados da resposta:', response.data);
+      
+      if (response.data && response.data.token) {
         console.log('🔐 AuthContext: Login bem-sucedido, salvando dados...');
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
@@ -78,18 +112,29 @@ export const AuthProvider = ({ children }) => {
         console.log('🔐 AuthContext: Dados do usuário salvos:', response.data.user);
         setUser(response.data.user);
         setIsAuthenticated(true);
-        console.log('🔐 AuthContext: Usuário autenticado:', response.data.user);
+        console.log('🔐 AuthContext: Usuário autenticado com sucesso!');
         
         return { success: true, data: response.data };
       }
       
-      console.log('🔐 AuthContext: Login falhou - credenciais inválidas');
-      return { success: false, message: 'Credenciais inválidas' };
+      console.log('🔐 AuthContext: Login falhou - sem token na resposta');
+      return { success: false, message: 'Resposta inválida do servidor' };
     } catch (error) {
-      console.error('🔐 AuthContext: Erro no login:', error);
+      console.error('🔐 AuthContext: Erro detalhado no login:', error);
+      console.error('🔐 AuthContext: Erro response:', error.response);
+      console.error('🔐 AuthContext: Erro message:', error.message);
+      
+      let errorMessage = 'Erro ao conectar com o servidor';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || `Erro ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'Não foi possível conectar com o servidor';
+      }
+      
       return { 
         success: false, 
-        message: error.response?.data?.message || 'Erro ao fazer login' 
+        message: errorMessage
       };
     } finally {
       setLoading(false);

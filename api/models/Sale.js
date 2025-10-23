@@ -43,6 +43,17 @@ const saleSchema = new mongoose.Schema({
     ref: 'Mesa',
     required: false
   },
+  // Snapshot do responsável da mesa no momento da finalização
+  responsavelNome: {
+    type: String,
+    maxlength: 100,
+    default: ''
+  },
+  responsavelFuncionario: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
   numeroComanda: {
     type: String,
     unique: true,

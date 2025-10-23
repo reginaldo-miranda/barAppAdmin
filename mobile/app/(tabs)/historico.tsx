@@ -17,28 +17,35 @@ import SearchAndFilter from '../../src/components/SearchAndFilter';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 
 interface Sale {
-  id: number;
-  numero: string;
-  type: 'balcao' | 'mesa' | 'comanda';
+  _id: string;
+  numeroComanda?: string;
+  nomeComanda?: string;
+  tipoVenda: 'balcao' | 'mesa' | 'comanda' | 'delivery';
   total: number;
-  status: 'finalizada' | 'cancelada';
-  paymentMethod: string;
-  customerName?: string;
-  employeeName: string;
-  mesaNumero?: number;
-  createdAt: string;
-  items: SaleItem[];
+  status: 'finalizada' | 'cancelada' | 'aberta';
+  formaPagamento?: string;
+  cliente?: {
+    nome: string;
+  };
+  funcionario?: {
+    nome: string;
+  };
+  mesa?: {
+    numero: number;
+  };
+  dataVenda: string;
+  itens: SaleItem[];
 }
 
 interface SaleItem {
-  id: number;
-  productName: string;
-  quantity: number;
-  price: number;
-  total: number;
+  _id: string;
+  nomeProduto: string;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
 }
 
-type FilterType = 'all' | 'mesa' | 'balcao' | 'comanda';
+type FilterType = 'all' | 'mesa' | 'balcao' | 'comanda' | 'delivery';
 type DateFilter = 'today' | 'week' | 'month' | 'all';
 
 export default function HistoricoScreen() {
@@ -87,7 +94,7 @@ export default function HistoricoScreen() {
 
     // Filtro por tipo
     if (type !== 'all') {
-      filtered = filtered.filter(sale => sale.type === type);
+      filtered = filtered.filter(sale => sale.tipoVenda === type);
     }
 
     // Filtro por data
@@ -97,21 +104,21 @@ export default function HistoricoScreen() {
     switch (date) {
       case 'today':
         filtered = filtered.filter(sale => 
-          new Date(sale.createdAt) >= today
+          new Date(sale.dataVenda) >= today
         );
         break;
       case 'week':
         const weekAgo = new Date(today);
         weekAgo.setDate(today.getDate() - 7);
         filtered = filtered.filter(sale => 
-          new Date(sale.createdAt) >= weekAgo
+          new Date(sale.dataVenda) >= weekAgo
         );
         break;
       case 'month':
         const monthAgo = new Date(today);
         monthAgo.setMonth(today.getMonth() - 1);
         filtered = filtered.filter(sale => 
-          new Date(sale.createdAt) >= monthAgo
+          new Date(sale.dataVenda) >= monthAgo
         );
         break;
       case 'all':
@@ -123,10 +130,12 @@ export default function HistoricoScreen() {
     if (search.trim()) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(sale => 
-        sale.numero.toLowerCase().includes(searchLower) ||
-        (sale.customerName && sale.customerName.toLowerCase().includes(searchLower)) ||
-        sale.employeeName.toLowerCase().includes(searchLower) ||
-        (sale.mesaNumero && sale.mesaNumero.toString().includes(searchLower))
+        (sale.numeroComanda && sale.numeroComanda.toLowerCase().includes(searchLower)) ||
+        (sale.nomeComanda && sale.nomeComanda.toLowerCase().includes(searchLower)) ||
+        (sale.cliente?.nome && sale.cliente.nome.toLowerCase().includes(searchLower)) ||
+        (sale.funcionario?.nome && sale.funcionario.nome.toLowerCase().includes(searchLower)) ||
+        (sale.mesa?.numero && sale.mesa.numero.toString().includes(searchLower)) ||
+        sale._id.toLowerCase().includes(searchLower)
       );
     }
 
@@ -146,6 +155,8 @@ export default function HistoricoScreen() {
         return 'storefront';
       case 'comanda':
         return 'receipt';
+      case 'delivery':
+        return 'bicycle';
       default:
         return 'bag';
     }
@@ -159,8 +170,10 @@ export default function HistoricoScreen() {
         return 'Balcão';
       case 'comanda':
         return 'Comanda';
+      case 'delivery':
+        return 'Delivery';
       default:
-        return 'Venda';
+        return 'Outros';
     }
   };
 
@@ -169,27 +182,31 @@ export default function HistoricoScreen() {
       case 'mesa':
         return '#2196F3';
       case 'balcao':
-        return '#4CAF50';
-      case 'comanda':
         return '#FF9800';
+      case 'comanda':
+        return '#9C27B0';
+      case 'delivery':
+        return '#4CAF50';
       default:
-        return '#9E9E9E';
+        return '#757575';
     }
   };
 
   const renderSale = ({ item }: { item: Sale }) => (
     <TouchableOpacity
-      style={[styles.saleCard, { borderLeftColor: getTypeColor(item.type) }]}
+      style={[styles.saleCard, { borderLeftColor: getTypeColor(item.tipoVenda) }]}
       onPress={() => handleSalePress(item)}
     >
       <View style={styles.saleHeader}>
         <View style={styles.saleInfo}>
-          <Text style={styles.saleNumber}>{item.numero}</Text>
+          <Text style={styles.saleNumber}>
+            #{item.numeroComanda || item.nomeComanda || item._id.slice(-6)}
+          </Text>
           <View style={styles.typeContainer}>
-            <Ionicons name={getTypeIcon(item.type) as any} size={16} color={getTypeColor(item.type)} />
-            <Text style={[styles.typeText, { color: getTypeColor(item.type) }]}>
-              {getTypeText(item.type)}
-              {item.mesaNumero && ` ${item.mesaNumero}`}
+            <Ionicons name={getTypeIcon(item.tipoVenda) as any} size={16} color={getTypeColor(item.tipoVenda)} />
+            <Text style={[styles.typeText, { color: getTypeColor(item.tipoVenda) }]}>
+              {getTypeText(item.tipoVenda)}
+              {item.mesa?.numero && ` ${item.mesa.numero}`}
             </Text>
           </View>
         </View>
@@ -207,18 +224,20 @@ export default function HistoricoScreen() {
         <View style={styles.detailRow}>
           <Ionicons name="person" size={14} color="#666" />
           <Text style={styles.detailText}>
-            {item.customerName || 'Cliente não informado'}
+            {item.cliente?.nome || 'Cliente não informado'}
           </Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="time" size={14} color="#666" />
           <Text style={styles.detailText}>
-            {new Date(item.createdAt).toLocaleString('pt-BR')}
+            {new Date(item.dataVenda).toLocaleString('pt-BR')}
           </Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="card" size={14} color="#666" />
-          <Text style={styles.detailText}>{item.paymentMethod}</Text>
+          <Text style={styles.detailText}>
+            {item.formaPagamento || 'Não informado'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -241,6 +260,7 @@ export default function HistoricoScreen() {
     { key: 'mesa', label: 'Mesa' },
     { key: 'balcao', label: 'Balcão' },
     { key: 'comanda', label: 'Comanda' },
+    { key: 'delivery', label: 'Delivery' },
   ];
 
   const handleFilterChange = (filterKey: string) => {
@@ -293,7 +313,7 @@ export default function HistoricoScreen() {
       <FlatList
         data={filteredSales}
         renderItem={renderSale}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -324,36 +344,38 @@ export default function HistoricoScreen() {
             
             <ScrollView style={styles.modalContent}>
               <View style={styles.saleDetailCard}>
-                <Text style={styles.saleDetailNumber}>{selectedSale.numero}</Text>
+                <Text style={styles.saleDetailNumber}>
+                  {selectedSale.numeroComanda || selectedSale.nomeComanda || `#${selectedSale._id.slice(-6)}`}
+                </Text>
                 <Text style={styles.saleDetailTotal}>R$ {selectedSale.total.toFixed(2)}</Text>
                 
                 <View style={styles.saleDetailInfo}>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Tipo:</Text>
-                    <Text style={styles.infoValue}>{getTypeText(selectedSale.type)}</Text>
+                    <Text style={styles.infoValue}>{getTypeText(selectedSale.tipoVenda)}</Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Cliente:</Text>
-                    <Text style={styles.infoValue}>{selectedSale.customerName || 'Não informado'}</Text>
+                    <Text style={styles.infoValue}>{selectedSale.cliente?.nome || 'Não informado'}</Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Funcionário:</Text>
-                    <Text style={styles.infoValue}>{selectedSale.employeeName}</Text>
+                    <Text style={styles.infoValue}>{selectedSale.funcionario?.nome || 'Não informado'}</Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Pagamento:</Text>
-                    <Text style={styles.infoValue}>{selectedSale.paymentMethod}</Text>
+                    <Text style={styles.infoValue}>{selectedSale.formaPagamento || 'Não informado'}</Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Data:</Text>
                     <Text style={styles.infoValue}>
-                      {new Date(selectedSale.createdAt).toLocaleString('pt-BR')}
+                      {new Date(selectedSale.dataVenda).toLocaleString('pt-BR')}
                     </Text>
                   </View>
-                  {selectedSale.mesaNumero && (
+                  {selectedSale.mesa?.numero && (
                     <View style={styles.infoItem}>
                       <Text style={styles.infoLabel}>Mesa:</Text>
-                      <Text style={styles.infoValue}>{selectedSale.mesaNumero}</Text>
+                      <Text style={styles.infoValue}>{selectedSale.mesa.numero}</Text>
                     </View>
                   )}
                 </View>
@@ -361,13 +383,13 @@ export default function HistoricoScreen() {
 
               <View style={styles.itemsContainer}>
                 <Text style={styles.itemsTitle}>Itens da Venda</Text>
-                {selectedSale.items.map((item, index) => (
+                {selectedSale.itens.map((item, index) => (
                   <View key={index} style={styles.itemRow}>
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.productName}</Text>
-                      <Text style={styles.itemQuantity}>Qtd: {item.quantity}</Text>
+                      <Text style={styles.itemName}>{item.nomeProduto}</Text>
+                      <Text style={styles.itemQuantity}>Qtd: {item.quantidade}</Text>
                     </View>
-                    <Text style={styles.itemTotal}>R$ {item.total.toFixed(2)}</Text>
+                    <Text style={styles.itemTotal}>R$ {item.subtotal.toFixed(2)}</Text>
                   </View>
                 ))}
               </View>

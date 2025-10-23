@@ -39,6 +39,7 @@ import userRoutes from "./routes/user.js";
 import tipoRoutes from "./routes/tipo.js";
 import unidadeMedidaRoutes from "./routes/unidadeMedida.js";
 import categoriaRoutes from "./routes/categoria.js";
+import caixaRoutes from "./routes/caixa.js";
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/tipo", tipoRoutes);
 app.use("/api/unidade-medida", unidadeMedidaRoutes);
 app.use("/api/categoria", categoriaRoutes);
+app.use("/api/caixa", caixaRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, '0.0.0.0', () => console.log(`✅ API rodando em: http://0.0.0.0:${PORT}`));

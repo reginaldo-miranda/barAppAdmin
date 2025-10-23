@@ -128,11 +128,14 @@ router.post('/:id/fechar', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, capacidade, observacoes, status, tipo } = req.body;
+    const updateData = req.body;
+    
+    console.log('🔄 Atualizando mesa:', id);
+    console.log('🔄 Dados recebidos:', updateData);
     
     const mesa = await Mesa.findByIdAndUpdate(
       id,
-      { nome, capacidade, observacoes, status, tipo },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -140,8 +143,10 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Mesa não encontrada' });
     }
 
+    console.log('✅ Mesa atualizada:', mesa);
     res.json({ message: 'Mesa atualizada com sucesso', mesa });
   } catch (error) {
+    console.error('❌ Erro ao atualizar mesa:', error);
     res.status(500).json({ message: 'Erro ao atualizar mesa', error: error.message });
   }
 });

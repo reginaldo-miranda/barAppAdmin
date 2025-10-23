@@ -12,13 +12,16 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { mesaService, saleService, employeeService } from '../../src/services/api';
-import ProductSelector from '../../src/components/ProductSelector.js';
-import { useAuth } from '../../src/contexts/AuthContext';
-import SearchAndFilter from '../../src/components/SearchAndFilter';
-import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+  import ProductSelector from '../../src/components/ProductSelector.js';
+  import { useAuth } from '../../src/contexts/AuthContext';
+  import SearchAndFilter from '../../src/components/SearchAndFilter';
+  import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+  import { API_URL } from '../../src/services/api';
+  import { events } from '../../src/utils/eventBus';
 
 interface Funcionario {
   _id: string;
@@ -51,6 +54,14 @@ export default function MesasScreen() {
   const [criarMesaModalVisible, setCriarMesaModalVisible] = useState(false);
   const [abrirMesaModalVisible, setAbrirMesaModalVisible] = useState(false);
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null);
+  
+  // Modal de pagamento ao fechar mesa
+  const [fecharMesaModalVisible, setFecharMesaModalVisible] = useState(false);
+  const [fecharMesaSelecionada, setFecharMesaSelecionada] = useState<Mesa | null>(null);
+  const [fecharPaymentMethod, setFecharPaymentMethod] = useState<'dinheiro' | 'cartao' | 'pix'>('dinheiro');
+  const [fecharTotal, setFecharTotal] = useState<number>(0);
+  const [fecharSaleId, setFecharSaleId] = useState<string | null>(null);
+  const [finalizandoMesa, setFinalizandoMesa] = useState(false);
   
   // Estados para formulários
   const [quantidades, setQuantidades] = useState({
@@ -110,7 +121,7 @@ export default function MesasScreen() {
   const loadMesas = async () => {
     try {
       setLoading(true);
-      const response = await mesaService.getAll();
+      const response = await mesaService.list();
       
       // Verificação automática de consistência: se uma mesa tem vendaAtual mas status não é ocupada
       const mesasData = response.data || [];
@@ -129,12 +140,12 @@ export default function MesasScreen() {
       
       // Se houve correções, recarrega os dados
       if (needsReload) {
-        const updatedResponse = await mesaService.getAll();
+        const updatedResponse = await mesaService.list();
         setMesas(updatedResponse.data || []);
       } else {
         setMesas(mesasData);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar mesas:', error);
       Alert.alert('Erro', 'Não foi possível carregar as mesas');
     } finally {
@@ -146,7 +157,7 @@ export default function MesasScreen() {
     try {
       const response = await employeeService.getAll();
       setFuncionarios(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar funcionários:', error);
     }
   };
@@ -382,8 +393,13 @@ export default function MesasScreen() {
     setAbindoMesa(true);
 
     try {
+      if (!mesaSelecionada) {
+        Alert.alert('Erro', 'Nenhuma mesa selecionada');
+        return;
+      }
+
       await mesaService.abrir(
-        mesaSelecionada!._id,
+        mesaSelecionada._id,
         formAbrirMesa.funcionarioResponsavel,
         formAbrirMesa.nomeResponsavel.trim(),
         formAbrirMesa.observacoes.trim()
@@ -422,7 +438,8 @@ export default function MesasScreen() {
               
               Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
               await loadMesas();
-            } catch (error) {
+              events.emit('caixa:refresh');
+            } catch (error: any) {
               console.error('Erro ao fechar mesa:', error);
               Alert.alert('Erro', 'Não foi possível fechar a mesa');
             }
@@ -434,6 +451,11 @@ export default function MesasScreen() {
 
   // Função para liberar mesa
   const liberarMesa = async (mesa: Mesa) => {
+    console.log('🔓🔓🔓 FUNÇÃO LIBERAR MESA CHAMADA! 🔓🔓🔓');
+    console.log('Mesa para liberar:', mesa);
+    console.log('ID da mesa:', mesa._id);
+    console.log('Status atual:', mesa.status);
+    
     Alert.alert(
       'Confirmar',
       `Deseja liberar a mesa ${mesa.numero}?`,
@@ -442,18 +464,26 @@ export default function MesasScreen() {
         {
           text: 'Liberar',
           onPress: async () => {
+            console.log('🔄 Usuário confirmou liberação da mesa');
             try {
-              await mesaService.update(mesa._id, {
+              console.log('📡 Chamando mesaService.update...');
+              const response = await mesaService.update(mesa._id, {
                 status: 'livre',
                 nomeResponsavel: undefined,
-                funcionarioResponsavel: undefined
+                funcionarioResponsavel: undefined,
+                vendaAtual: undefined
               });
+              console.log('✅ Mesa atualizada com sucesso:', response);
               
-              Alert.alert('Sucesso', 'Mesa liberada com sucesso!');
-              await loadMesas();
-            } catch (error) {
-              console.error('Erro ao liberar mesa:', error);
-              Alert.alert('Erro', 'Não foi possível liberar a mesa');
+              Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
+            console.log('🔄 Recarregando lista de mesas...');
+            await loadMesas();
+            console.log('✅ Lista de mesas recarregada!');
+            events.emit('caixa:refresh');
+            } catch (error: any) {
+              console.error('❌ ERRO ao liberar mesa:', error);
+              console.error('Detalhes do erro:', error.response?.data || error.message);
+              Alert.alert('Erro', `Não foi possível liberar a mesa: ${error.response?.data?.message || error.message}`);
             }
           }
         }
@@ -491,7 +521,7 @@ export default function MesasScreen() {
               await mesaService.update(mesa._id, { status: 'manutencao' });
               Alert.alert('Sucesso', 'Mesa colocada em manutenção');
               await loadMesas();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Erro ao colocar mesa em manutenção:', error);
               Alert.alert('Erro', 'Não foi possível colocar a mesa em manutenção');
             }
@@ -501,8 +531,125 @@ export default function MesasScreen() {
     );
   };
 
+  // Abrir modal de pagamento para fechar mesa
+  const fecharModalFecharMesa = async (mesa: Mesa) => {
+    console.log('🔥🔥🔥 FUNÇÃO fecharModalFecharMesa INICIADA! 🔥🔥🔥');
+    console.log('Mesa recebida:', mesa);
+    try {
+      console.log('🔄 Configurando estados iniciais...');
+      setFecharMesaSelecionada(mesa);
+      setFecharPaymentMethod('dinheiro');
+      setFecharTotal(0);
+      setFecharSaleId(null);
+      console.log('✅ Estados iniciais configurados!');
+
+      const response = await saleService.getByMesa(mesa._id);
+      const sales = response.data || [];
+      const activeSale = sales.find((s: any) => s.status === 'aberta');
+
+      if (!activeSale) {
+        console.log('ℹ️ Nenhuma venda ativa. Permitindo fechamento direto da mesa.');
+        setFecharTotal(0);
+        setFecharSaleId(null);
+        setFecharMesaModalVisible(true);
+        return;
+      }
+
+      const itensCount = (activeSale.itens || []).length;
+      if (itensCount === 0) {
+        Alert.alert('Erro', 'Para fechar a mesa é necessário ter itens na venda.');
+        return;
+      }
+      const total = (activeSale.itens || []).reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+      setFecharTotal(total);
+      setFecharSaleId(activeSale._id);
+      setFecharMesaModalVisible(true);
+    } catch (error: any) {
+      console.error('Erro ao carregar venda da mesa:', error);
+      Alert.alert('Erro', 'Não foi possível buscar a venda da mesa.');
+    }
+  };
+
+  // Confirmar fechamento com pagamento
+  const confirmarFechamentoMesa = async () => {
+    console.log('🔄 CONFIRMAR BOTÃO CLICADO - Iniciando processo de fechamento');
+    console.log('📊 Estado atual:', {
+      fecharSaleId,
+      fecharMesaSelecionada: fecharMesaSelecionada?.numero,
+      fecharPaymentMethod,
+      finalizandoMesa
+    });
+
+    if (!fecharMesaSelecionada) {
+      console.log('❌ ERRO: Mesa não selecionada');
+      Alert.alert('Erro', 'Mesa não selecionada.');
+      return;
+    }
+
+    try {
+      setFinalizandoMesa(true);
+
+      let venda: any = null;
+      if (fecharSaleId) {
+        console.log('🔎 Buscando venda atual via API...', fecharSaleId);
+        const vendaResp = await saleService.getById(fecharSaleId);
+        venda = vendaResp?.data;
+      }
+
+      const itens = Array.isArray(venda?.itens) ? venda.itens : [];
+      const possuiItens = itens.length > 0;
+      const vendaAberta = venda?.status === 'aberta';
+
+      if (vendaAberta && possuiItens) {
+        const totalAtual = itens.reduce((sum: number, it: any) => sum + (it.subtotal || 0), 0);
+        setFecharTotal(totalAtual);
+        const data = { formaPagamento: fecharPaymentMethod };
+        console.log('🌐 Finalizando venda via API...');
+        const response = await saleService.finalize(fecharSaleId!, data);
+        console.log('✅ Venda finalizada:', response.data);
+        Alert.alert('Sucesso', 'Venda finalizada e mesa liberada!');
+      } else {
+        console.log('ℹ️ Sem venda aberta com itens. Não é possível finalizar.');
+        Alert.alert('Erro', 'Para fechar a mesa é necessário ter itens em uma venda aberta. Use "Liberar" para apenas liberar a mesa sem registro no caixa.');
+        return;
+      }
+
+      setFecharMesaModalVisible(false);
+      setFecharMesaSelecionada(null);
+      setFecharSaleId(null);
+      setFecharTotal(0);
+      setFecharPaymentMethod('dinheiro');
+
+      console.log('🔄 Recarregando lista de mesas...');
+      await loadMesas();
+      console.log('✅ Lista de mesas recarregada');
+      events.emit('caixa:refresh');
+    } catch (error: any) {
+      console.error('❌ ERRO ao fechar mesa:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        config: error?.config,
+        stack: error?.stack
+      });
+
+      let errorMessage = 'Falha ao fechar mesa';
+      if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert('Erro', errorMessage);
+    } finally {
+      setFinalizandoMesa(false);
+      console.log('🏁 Finalizando processo (finally block)');
+    }
+  };
+
   // Função para renderizar item da lista
-  const renderMesaItem = ({ item }: { item: Mesa }) => {
+  const renderItem = ({ item }: { item: Mesa }) => {
+    console.log('🏠 RENDERIZANDO MESA:', item.numero, 'STATUS:', item.status);
     const getStatusColor = (status: string) => {
       switch (status) {
         case 'livre': return '#4CAF50';
@@ -602,11 +749,40 @@ export default function MesasScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.closeButton]}
-                  onPress={() => fecharMesa(item)}
+                  style={[styles.actionButton, styles.cashButton]}
+                  onPress={() => {
+                    console.log('💵 ÍCONE CAIXA CLICADO');
+                    console.log('Mesa selecionada:', item);
+                    try {
+                      fecharModalFecharMesa(item);
+                      console.log('✅ Modal de fechamento aberto via ícone Caixa');
+                    } catch (error) {
+                      console.error('❌ ERRO ao abrir modal via ícone Caixa:', error);
+                    }
+                  }}
                 >
-                  <Ionicons name="stop" size={12} color="#fff" />
-                  <Text style={styles.actionButtonText}>Fechar</Text>
+                  <Ionicons name="cash" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>Caixa</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.closeButton]}
+                  onPress={() => {
+                    console.log('🟣🟣🟣 BOTÃO FECHAR MESA CLICADO! 🟣🟣🟣');
+                    console.log('Mesa selecionada:', item);
+                    console.log('Status da mesa:', item.status);
+                    console.log('ID da mesa:', item._id);
+                    console.log('Chamando fecharModalFecharMesa...');
+                    try {
+                      fecharModalFecharMesa(item);
+                      console.log('✅ fecharModalFecharMesa chamada com sucesso!');
+                    } catch (error) {
+                      console.error('❌ ERRO ao chamar fecharModalFecharMesa:', error);
+                    }
+                  }}
+                >
+                  <Ionicons name="close-circle" size={12} color="#fff" />
+                  <Text style={styles.actionButtonText}>🟣 FECHAR MESA</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -737,7 +913,7 @@ export default function MesasScreen() {
       {/* Lista de mesas */}
       <FlatList
         data={filteredMesas}
-        renderItem={renderMesaItem}
+        renderItem={renderItem}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
@@ -1170,6 +1346,85 @@ export default function MesasScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de pagamento para fechar mesa */}
+      <Modal
+        visible={fecharMesaModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFecharMesaModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🍽️ Finalizar Mesa {fecharMesaSelecionada?.numero}</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setFecharMesaModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <Text style={styles.modalDescription}>💰 Total da Mesa: R$ {fecharTotal.toFixed(2)}</Text>
+              <Text style={styles.modalSubDescription}>Selecione a forma de pagamento para finalizar a mesa:</Text>
+              <View style={styles.mesaTypesList}>
+                {[
+                  { key: 'dinheiro', label: 'Dinheiro' },
+                  { key: 'cartao', label: 'Cartão' },
+                  { key: 'pix', label: 'PIX' },
+                ].map((method) => (
+                  <TouchableOpacity
+                    key={method.key}
+                    style={[
+                      styles.dropdownItem,
+                      fecharPaymentMethod === method.key && styles.dropdownItemSelected,
+                    ]}
+                    onPress={() => setFecharPaymentMethod(method.key as any)}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        fecharPaymentMethod === method.key && styles.dropdownItemTextSelected,
+                      ]}
+                    >
+                      {method.label}
+                    </Text>
+                    {fecharPaymentMethod === method.key && (
+                      <Ionicons name="checkmark" size={16} color="#2196F3" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setFecharMesaModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.confirmButton,
+                  finalizandoMesa && { opacity: 0.6 }
+                ]}
+                onPress={confirmarFechamentoMesa}
+                disabled={finalizandoMesa}
+              >
+                {finalizandoMesa ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Confirmar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1371,17 +1626,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
   },
   closeButton: {
-    backgroundColor: '#F44336',
-  },
-  releaseButton: {
-    backgroundColor: '#9C27B0',
-  },
-  maintenanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-  },
+     backgroundColor: '#9C27B0',
+   },
+   releaseButton: {
+     backgroundColor: '#9C27B0',
+   },
+   cashButton: {
+     backgroundColor: '#009688',
+   },
+   maintenanceInfo: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'center',
+     paddingVertical: 8,
+   },
   maintenanceText: {
     color: '#FF9800',
     fontSize: 12,
@@ -1432,6 +1690,13 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   modalDescription: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 8,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  modalSubDescription: {
     fontSize: 14,
     color: '#666',
     marginBottom: 16,
@@ -1485,7 +1750,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   confirmButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
   },
   confirmButtonText: {
     color: '#fff',
@@ -1676,5 +1941,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-///     jhhhh

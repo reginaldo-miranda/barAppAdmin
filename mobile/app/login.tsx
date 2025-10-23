@@ -18,30 +18,30 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('admin@barapp.com');
   const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, loading } = useAuth();
+  const { login, loading, clearAllStorage } = useAuth();
 
   const handleLogin = async () => {
-    console.log('handleLogin chamado');
+    console.log('🚀 handleLogin chamado com:', { email, password: '***' });
+    
     if (!email.trim() || !password.trim()) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos');
       return;
     }
 
     try {
-      console.log('Tentando fazer login com:', { email, password });
+      console.log('🚀 Chamando função login do contexto...');
       const result = await login({ email, password });
-      console.log('Resultado do login:', result);
+      console.log('🚀 Resultado do login:', result);
       
       if (result.success) {
-        console.log('Login bem-sucedido, redirecionando...');
-        console.log('✅ Login realizado com sucesso');
+        console.log('🚀 Login bem-sucedido, redirecionando...');
         router.replace('/(tabs)');
       } else {
-        console.log('Login falhou:', result.message);
+        console.log('🚀 Login falhou:', result.message);
         Alert.alert('Erro de Login', result.message || 'Email ou senha incorretos');
       }
-    } catch (error) {
-      console.error('Erro no login:', error);
+    } catch (error: any) {
+      console.error('🚀 Erro inesperado no login:', error);
       Alert.alert('Erro de Login', 'Erro inesperado ao fazer login');
     }
   };
@@ -116,6 +116,15 @@ export default function LoginScreen() {
           <Text style={styles.footerText}>
             Digite qualquer email e senha para testar
           </Text>
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={async () => {
+              await clearAllStorage();
+              Alert.alert('Debug', 'Cache limpo com sucesso!');
+            }}
+          >
+            <Text style={styles.debugButtonText}>Limpar Cache (Debug)</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -216,5 +225,18 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 16,
+  },
+  debugButton: {
+    backgroundColor: '#ff6b6b',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

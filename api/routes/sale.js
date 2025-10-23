@@ -3,6 +3,7 @@ import Sale from '../models/Sale.js';
 import Product from '../models/Product.js';
 import Employee from '../models/Employee.js';
 import Customer from '../models/Customer.js';
+import Caixa from '../models/Caixa.js';
 
 const router = express.Router();
 
@@ -98,10 +99,15 @@ router.post('/create', async (req, res) => {
       });
     }
     
+    // Após salvar nova venda, popular referências
     const vendaPopulada = await Sale.findById(novaVenda._id)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
-      .populate('mesa', 'numero nome');
+      .populate({
+        path: 'mesa',
+        select: 'numero nome nomeResponsavel funcionarioResponsavel',
+        populate: { path: 'funcionarioResponsavel', select: 'nome' }
+      });
 
     res.status(201).json(vendaPopulada);
   } catch (error) {
@@ -116,6 +122,11 @@ router.get('/open', async (req, res) => {
     const vendasAbertas = await Sale.find({ status: 'aberta' })
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate({
+        path: 'mesa',
+        select: 'numero nome nomeResponsavel funcionarioResponsavel',
+        populate: { path: 'funcionarioResponsavel', select: 'nome' }
+      })
       .sort({ dataVenda: -1 });
 
     res.json(vendasAbertas);
@@ -144,8 +155,13 @@ router.get('/list', async (req, res) => {
     const vendas = await Sale.find(filtros)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate({
+        path: 'mesa',
+        select: 'numero nome nomeResponsavel funcionarioResponsavel',
+        populate: { path: 'funcionarioResponsavel', select: 'nome' }
+      })
       .sort({ dataVenda: -1 })
-      .limit(100); // Limitar a 100 registros
+      .limit(100);
 
     res.json(vendas);
   } catch (error) {
@@ -163,12 +179,10 @@ router.get('/finalizadas', async (req, res) => {
     if (dataInicio || dataFim) {
       filtros.dataVenda = {};
       if (dataInicio) {
-        // Converter para data local e depois para UTC considerando fuso horário brasileiro (UTC-3)
         const inicio = new Date(dataInicio + 'T00:00:00-03:00');
         filtros.dataVenda.$gte = inicio;
       }
       if (dataFim) {
-        // Converter para data local e depois para UTC considerando fuso horário brasileiro (UTC-3)
         const fim = new Date(dataFim + 'T23:59:59-03:00');
         filtros.dataVenda.$lte = fim;
       }
@@ -177,6 +191,7 @@ router.get('/finalizadas', async (req, res) => {
     const vendas = await Sale.find(filtros)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate('mesa', 'numero nome')
       .sort({ dataVenda: -1 });
 
     res.json(vendas);
@@ -194,6 +209,7 @@ router.get('/mesa/:mesaId', async (req, res) => {
     const vendas = await Sale.find({ mesa: mesaId })
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate('mesa', 'numero nome')
       .populate('itens.produto', 'nome precoVenda')
       .sort({ dataVenda: -1 });
 
@@ -210,6 +226,7 @@ router.get('/:id', async (req, res) => {
     const venda = await Sale.findById(req.params.id)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate('mesa', 'numero nome')
       .populate('itens.produto', 'nome precoVenda');
 
     if (!venda) {
@@ -394,16 +411,109 @@ router.put('/:id/finalize', async (req, res) => {
       return res.status(400).json({ error: 'Não é possível finalizar uma venda sem itens' });
     }
 
-    // Definir forma de pagamento se fornecida
-    if (formaPagamento && ['dinheiro', 'cartao', 'pix'].includes(formaPagamento)) {
-      venda.formaPagamento = formaPagamento;
+    // Normalizar e definir forma de pagamento
+    const formaPagamentoNormalizada = (formaPagamento || venda.formaPagamento || 'dinheiro')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    if (['dinheiro', 'cartao', 'pix'].includes(formaPagamentoNormalizada)) {
+      venda.formaPagamento = formaPagamentoNormalizada;
+    } else {
+      venda.formaPagamento = 'dinheiro';
+    }
+
+    // Garantir subtotal e total atualizados
+    const subtotal = venda.itens.reduce(
+      (acc, item) => acc + (item.subtotal ?? (item.quantidade * item.precoUnitario)),
+      0
+    );
+    venda.subtotal = subtotal;
+    venda.total = Math.max(0, subtotal - (venda.desconto || 0));
+
+    // Capturar snapshot do responsável da mesa antes de liberar a mesa
+    if (venda.mesa) {
+      const Mesa = (await import('../models/Mesa.js')).default;
+      const mesaDoc = await Mesa.findById(venda.mesa).populate('funcionarioResponsavel', 'nome');
+      if (mesaDoc) {
+        venda.responsavelNome = mesaDoc?.funcionarioResponsavel?.nome || mesaDoc?.nomeResponsavel || venda.responsavelNome || '';
+        venda.responsavelFuncionario = mesaDoc?.funcionarioResponsavel?._id || venda.responsavelFuncionario || null;
+      }
     }
 
     venda.status = 'finalizada';
     venda.dataFinalizacao = new Date();
     await venda.save();
     
-    // Se a venda está associada a uma mesa, limpar os dados da mesa
+    // Registrar venda no caixa (autoabrir se não existir)
+    try {
+      let caixaAberto = await Caixa.findOne({ status: 'aberto' });
+      if (!caixaAberto) {
+        console.log('⚠️ Nenhum caixa aberto encontrado, criando automaticamente...');
+        const funcionario = await Employee.findOne({ status: 'ativo' }) || await Employee.findOne();
+        if (!funcionario) {
+          const funcionarioPadrao = new Employee({
+            nome: 'Administrador',
+            email: 'admin@bar.com',
+            telefone: '(00) 00000-0000',
+            cargo: 'Gerente',
+            salario: 0,
+            dataAdmissao: new Date(),
+            status: 'ativo'
+          });
+          await funcionarioPadrao.save();
+          caixaAberto = new Caixa({
+            funcionarioAbertura: funcionarioPadrao._id,
+            valorAbertura: 0,
+            observacoes: 'Caixa aberto automaticamente pelo sistema'
+          });
+        } else {
+          caixaAberto = new Caixa({
+            funcionarioAbertura: funcionario._id,
+            valorAbertura: 0,
+            observacoes: 'Caixa aberto automaticamente pelo sistema'
+          });
+        }
+        await caixaAberto.save();
+        console.log('✅ Caixa aberto automaticamente:', caixaAberto._id);
+      }
+
+      const valorVenda = Number.isFinite(venda.total)
+        ? venda.total
+        : Math.max(0, venda.itens.reduce((acc,i)=>acc + (i.subtotal ?? (i.quantidade * i.precoUnitario)), 0) - (venda.desconto || 0));
+      const forma = (venda.formaPagamento || 'dinheiro')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      caixaAberto.vendas.push({
+        venda: venda._id,
+        valor: valorVenda,
+        formaPagamento: forma,
+        dataVenda: new Date()
+      });
+
+      // Atualizar totais do caixa com segurança
+      caixaAberto.totalVendas = Number(caixaAberto.totalVendas || 0) + valorVenda;
+      switch (forma) {
+        case 'dinheiro':
+          caixaAberto.totalDinheiro = Number(caixaAberto.totalDinheiro || 0) + valorVenda;
+          break;
+        case 'cartao':
+          caixaAberto.totalCartao = Number(caixaAberto.totalCartao || 0) + valorVenda;
+          break;
+        case 'pix':
+          caixaAberto.totalPix = Number(caixaAberto.totalPix || 0) + valorVenda;
+          break;
+      }
+
+      await caixaAberto.save();
+      console.log(`✅ Venda ${venda._id} registrada no caixa - Valor: R$ ${valorVenda}`);
+    } catch (caixaError) {
+      console.error('Erro ao registrar venda no caixa:', caixaError);
+      // Não falha a finalização da venda se houver erro no caixa
+    }
+    
+    // Se a venda está associada a uma mesa, limpar os dados da mesa (completo)
     if (venda.mesa) {
       const Mesa = (await import('../models/Mesa.js')).default;
       await Mesa.findByIdAndUpdate(venda.mesa, {
@@ -411,13 +521,20 @@ router.put('/:id/finalize', async (req, res) => {
         vendaAtual: null,
         clientesAtuais: 0,
         horaAbertura: null,
-        observacoes: ''
+        observacoes: '',
+        funcionarioResponsavel: null,
+        nomeResponsavel: ''
       });
     }
     
     const vendaFinalizada = await Sale.findById(venda._id)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')
+      .populate({
+        path: 'mesa',
+        select: 'numero nome nomeResponsavel funcionarioResponsavel',
+        populate: { path: 'funcionarioResponsavel', select: 'nome' }
+      })
       .populate('itens.produto', 'nome precoVenda');
 
     res.json(vendaFinalizada);

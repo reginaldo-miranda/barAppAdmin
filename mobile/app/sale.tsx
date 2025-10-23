@@ -101,12 +101,22 @@ export default function SaleScreen() {
       
       const response = await saleService.getByMesa(mesaId as string);
       if (response.data && response.data.length > 0) {
-        // Pega a venda ativa da mesa (status 'aberta')
-        const activeSale = response.data.find((sale: Sale) => sale.status === 'aberta') || response.data[0];
-        setSale(activeSale);
-        setCart(activeSale.itens || []);
+        // Pega SOMENTE a venda ativa (status 'aberta') em modo normal
+        const activeSale = response.data.find((sale: Sale) => sale.status === 'aberta');
+        if (activeSale) {
+          setSale(activeSale);
+          setCart(activeSale.itens || []);
+        } else if (!isViewMode) {
+          // Sem venda aberta: cria uma nova venda para evitar reutilizar itens antigos
+          await createNewSale();
+        } else {
+          // Em modo visualização, permitir ver a última venda (mesmo finalizada)
+          const lastSale = response.data[0];
+          setSale(lastSale);
+          setCart(lastSale.itens || []);
+        }
       } else if (!isViewMode) {
-        createNewSale();
+        await createNewSale();
       }
     } catch (error) {
       console.error('Erro ao carregar venda da mesa:', error);
@@ -285,7 +295,16 @@ export default function SaleScreen() {
   };
 
   const finalizeSale = async () => {
+    console.log('🔄 FINALIZAR VENDA - Iniciando processo');
+    console.log('📊 Estado atual:', {
+      sale: sale?._id,
+      cartLength: cart.length,
+      paymentMethod,
+      tipo
+    });
+
     if (!sale || cart.length === 0) {
+      console.log('❌ ERRO: Venda ou carrinho inválido');
       Alert.alert('Erro', 'Adicione pelo menos um item à venda');
       return;
     }
@@ -293,22 +312,60 @@ export default function SaleScreen() {
     try {
       const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
       const finalizeData = {
-        metodoPagamento: paymentMethod,
+        formaPagamento: paymentMethod, // Corrigindo para usar 'formaPagamento' como a API espera
         total: total
       };
       
+      console.log('📤 Dados sendo enviados para API:', finalizeData);
+      console.log('🎯 Tipo de venda:', tipo);
+      console.log('🆔 ID da venda:', sale._id);
+      
+      let response;
       if (tipo === 'comanda') {
-        await comandaService.finalize(sale._id, finalizeData);
+        console.log('🌐 Chamando comandaService.finalize...');
+        response = await comandaService.finalize(sale._id, finalizeData);
       } else {
-        await saleService.finalize(sale._id, finalizeData);
+        console.log('🌐 Chamando saleService.finalize...');
+        response = await saleService.finalize(sale._id, finalizeData);
       }
       
+      console.log('✅ Resposta da API recebida:', response.data);
+      
+      // Limpar dados após finalização bem-sucedida
+      console.log('🧹 Limpando dados após finalização...');
+      setCart([]);
+      setSale(null);
+      setNomeResponsavel('');
+      setMesa(null);
+      setComanda(null);
+      
       Alert.alert('Sucesso', 'Venda finalizada com sucesso!', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => {
+          console.log('🔄 Voltando para tela anterior...');
+          router.back();
+        }}
       ]);
-    } catch (error) {
-      console.error('Erro ao finalizar venda:', error);
-      Alert.alert('Erro', 'Não foi possível finalizar a venda');
+      
+      // Fechar o modal
+      setModalVisible(false);
+      
+    } catch (error: any) {
+      console.error('❌ ERRO DETALHADO ao finalizar venda:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        config: error?.config,
+        stack: error?.stack
+      });
+      
+      let errorMessage = 'Não foi possível finalizar a venda';
+      if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Erro', errorMessage);
     }
   };
 
@@ -371,7 +428,12 @@ export default function SaleScreen() {
       {!isViewMode && cart.length > 0 && (
         <TouchableOpacity
           style={[styles.finalizeButton, cart.length === 0 && styles.finalizeButtonDisabled]}
-          onPress={() => setModalVisible(true)}
+          onPress={() => {
+            console.log('🔥 BOTÃO FINALIZAR CLICADO!');
+            console.log('📊 Estado do carrinho:', cart.length);
+            console.log('💰 Total:', total);
+            setModalVisible(true);
+          }}
           disabled={cart.length === 0}
         >
           <Text style={styles.finalizeButtonText}>
@@ -425,7 +487,12 @@ export default function SaleScreen() {
               
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
-                onPress={finalizeSale}
+                onPress={() => {
+                  console.log('🔥 BOTÃO CONFIRMAR CLICADO!');
+                  console.log('💳 Método de pagamento selecionado:', paymentMethod);
+                  console.log('💰 Total da venda:', total);
+                  finalizeSale();
+                }}
               >
                 <Text style={styles.confirmButtonText}>Confirmar</Text>
               </TouchableOpacity>

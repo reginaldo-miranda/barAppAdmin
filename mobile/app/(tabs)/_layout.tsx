@@ -69,6 +69,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="caixa"
+        options={{
+          title: 'Caixa',
+          headerTitle: 'Caixa - Vendas Abertas',
+          tabBarIcon: () => <Ionicons name="cash" size={24} color="#FF0000" />,
+        }}
+      />
+      <Tabs.Screen
         name="historico"
         options={{
           title: 'Histórico',

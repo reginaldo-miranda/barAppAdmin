@@ -1,23 +1,26 @@
-import { Redirect } from 'expo-router';
-import { useAuth } from '../src/contexts/AuthContext';
+import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function IndexScreen() {
-  const { isAuthenticated, loading } = useAuth();
+  const [isReady, setIsReady] = useState(false);
 
-  // Mostra loading enquanto verifica autenticação
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2196F3" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    // Aguardar um tick para garantir que o layout esteja montado
+    const timer = setTimeout(() => {
+      console.log('🏠 IndexScreen: Layout pronto, redirecionando para login...');
+      setIsReady(true);
+      router.replace('/login');
+    }, 100);
 
-  // Redireciona baseado no estado de autenticação
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
-  } else {
-    return <Redirect href="/login" />;
-  }
+    return () => clearTimeout(timer);
+  }, []);
+
+  console.log('🏠 IndexScreen: Renderizando - aguardando layout estar pronto');
+
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#2196F3" />
+    </View>
+  );
 }
