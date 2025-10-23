@@ -155,9 +155,19 @@ export default function HomeScreen() {
           <Text style={styles.userName}>{user?.name || 'Usuário'}</Text>
           <Text style={styles.userRole}>{user?.role || 'Funcionário'}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={handleOpenSettings}
+            activeOpacity={0.8}
+            accessibilityLabel="Abrir Configurações"
+          >
+            <Ionicons name="settings" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+            <Ionicons name="log-out" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Status Rápido */}
@@ -228,6 +238,11 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   welcomeText: {
     color: '#fff',
     fontSize: 16,
@@ -249,6 +264,12 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  settingsButton: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 8,
   },
   statsContainer: {
     padding: 20,
@@ -326,3 +347,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+const handleOpenSettings = () => {
+  router.push('/configuracoes');
+};

@@ -2,6 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { getSecureItem, STORAGE_KEYS } from './storage';
 
 // Resolve dinamicamente a URL base da API
 function resolveApiBaseUrl() {
@@ -43,14 +44,20 @@ api.interceptors.request.use(
   async (config) => {
     try {
       // Override de baseURL via AsyncStorage (opcional)
-      const storedBaseUrl = await AsyncStorage.getItem('API_BASE_URL');
+      const storedBaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_BASE_URL);
       if (storedBaseUrl) {
         config.baseURL = storedBaseUrl;
       }
 
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      // API Key opcional (armazenada com segurança)
+      const apiKey = await getSecureItem(STORAGE_KEYS.API_AUTH_KEY);
+      if (apiKey) {
+        config.headers['X-API-Key'] = apiKey;
       }
     } catch (error) {
       console.error('Erro no request interceptor:', error);
@@ -74,7 +81,7 @@ api.interceptors.response.use(
     
     if (error.response?.status === 401) {
       // Token expirado ou inválido
-      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       await AsyncStorage.removeItem('userData');
       // Aqui você pode redirecionar para tela de login
     }
@@ -83,6 +90,29 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Utilitário: testar conexão com baseURL opcional e API key opcional
+export async function testApiConnection(baseUrl, apiKey) {
+  const client = axios.create({
+    baseURL: baseUrl || API_BASE_URL,
+    timeout: 5000,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (apiKey) {
+    client.interceptors.request.use((cfg) => {
+      cfg.headers['X-API-Key'] = apiKey;
+      return cfg;
+    });
+  }
+  try {
+    const res = await client.get('/tipo/list');
+    return { ok: true, status: res.status, data: res.data };
+  } catch (e) {
+    const status = e?.response?.status || 0;
+    const reason = e?.response?.data || e?.message || 'Erro desconhecido';
+    return { ok: false, status, reason };
+  }
+}
 
 // Serviços específicos
 export const authService = {
