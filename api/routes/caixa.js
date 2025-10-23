@@ -22,7 +22,20 @@ router.get('/', async (req, res) => {
         ]
       })
       .sort({ dataAbertura: -1 });
-    res.json(caixas);
+
+    // Acrescentar campos derivados de exibição por venda
+    const caixasObj = caixas.map(caixa => {
+      const c = caixa.toObject();
+      c.vendas = (c.vendas || []).map(reg => {
+        const v = reg.venda || {};
+        const atendenteNome = v.funcionarioNome || v.funcionarioAberturaNome || (v.funcionario && v.funcionario.nome) || 'Administrador';
+        const responsavelNome = v.responsavelNome || (v.mesa && v.mesa.nomeResponsavel) || v.nomeComanda || '';
+        return { ...reg, atendenteNome, responsavelNome };
+      });
+      return c;
+    });
+
+    res.json(caixasObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -49,8 +62,16 @@ router.get('/:id', async (req, res) => {
     if (!caixa) {
       return res.status(404).json({ message: 'Caixa não encontrado' });
     }
+
+    const c = caixa.toObject();
+    c.vendas = (c.vendas || []).map(reg => {
+      const v = reg.venda || {};
+      const atendenteNome = v.funcionarioNome || v.funcionarioAberturaNome || (v.funcionario && v.funcionario.nome) || 'Administrador';
+      const responsavelNome = v.responsavelNome || (v.mesa && v.mesa.nomeResponsavel) || v.nomeComanda || '';
+      return { ...reg, atendenteNome, responsavelNome };
+    });
     
-    res.json(caixa);
+    res.json(c);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -231,8 +252,16 @@ router.get('/status/aberto', async (req, res) => {
     if (!caixaAberto) {
       return res.status(404).json({ message: 'Nenhum caixa aberto' });
     }
+
+    const c = caixaAberto.toObject();
+    c.vendas = (c.vendas || []).map(reg => {
+      const v = reg.venda || {};
+      const atendenteNome = v.funcionarioNome || v.funcionarioAberturaNome || (v.funcionario && v.funcionario.nome) || 'Administrador';
+      const responsavelNome = v.responsavelNome || (v.mesa && v.mesa.nomeResponsavel) || v.nomeComanda || '';
+      return { ...reg, atendenteNome, responsavelNome };
+    });
     
-    res.json(caixaAberto);
+    res.json(c);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

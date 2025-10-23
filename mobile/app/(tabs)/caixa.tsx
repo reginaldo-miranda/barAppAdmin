@@ -33,6 +33,13 @@ interface Sale {
   }>;
   mesa?: { _id?: string; numero?: string; nome?: string; funcionarioResponsavel?: { nome: string }; nomeResponsavel?: string };
   funcionario?: { nome: string };
+  // Snapshots adicionados na finalização
+  responsavelNome?: string; // cliente
+  responsavelFuncionario?: string; // se existir, manter por compatibilidade
+  funcionarioNome?: string; // funcionário que finalizou (compatibilidade)
+  funcionarioId?: string;
+  funcionarioAberturaNome?: string; // funcionário que abriu a mesa
+  funcionarioAberturaId?: string;
   subtotal: number;
   desconto: number;
   total: number;
@@ -177,14 +184,19 @@ export default function CaixaScreen() {
           .filter(cv => {
             const mesaRef: any = cv?.venda?.mesa;
             if (!mesaRef) return false;
-            // Se já houver objeto com _id, não precisa
-            if (typeof mesaRef === 'object' && mesaRef?._id) return false;
-            // Se for string (ObjectId) ou algo sem _id, buscar
-            return true;
+            // Buscar quando for string (ObjectId) OU quando vier objeto incompleto (sem funcionarioResponsavel.nome ou nomeResponsavel)
+            if (typeof mesaRef === 'string') return true;
+            if (typeof mesaRef === 'object') {
+              const hasFuncNome = !!mesaRef?.funcionarioResponsavel?.nome && String(mesaRef?.funcionarioResponsavel?.nome).trim().length > 0;
+              const hasRespNome = !!mesaRef?.nomeResponsavel && String(mesaRef?.nomeResponsavel).trim().length > 0;
+              // Se faltar algum dos nomes, tentar buscar detalhes completos
+              return !(hasFuncNome && hasRespNome);
+            }
+            return false;
           })
           .map(async (cv) => {
             const mesaRef: any = cv?.venda?.mesa;
-            const mesaId = typeof mesaRef === 'string' ? mesaRef : undefined;
+            const mesaId = typeof mesaRef === 'string' ? mesaRef : mesaRef?._id;
             if (!mesaId) return;
             try {
               const resp = await mesaService.getById(mesaId);
@@ -317,18 +329,35 @@ export default function CaixaScreen() {
             </View>
           ) : (
             caixaVendas.map((cv, idx) => {
-              const mesaObj: any = (cv.venda.mesa && typeof cv.venda.mesa === 'object')
-                ? cv.venda.mesa
-                : mesaInfoBySale[cv.venda._id];
-              const responsavel = (
-                cv.venda?.responsavelNome ??
-                (mesaObj ? (mesaObj?.funcionarioResponsavel?.nome ?? mesaObj?.nomeResponsavel) : undefined) ??
-                (typeof (cv.venda as any).funcionario === 'string' ? (cv.venda as any).funcionario : cv.venda.funcionario?.nome) ??
-                'N/A'
-              );
-              const numeroMesa = mesaObj?.numero;
-              const idMesa = mesaObj?._id;
-
+              // Priorizar mesa detalhada buscada do backend, se existir
+              const mesaObj: any = mesaInfoBySale[cv.venda._id] || ((cv.venda.mesa && typeof cv.venda.mesa === 'object') ? cv.venda.mesa : undefined);
+              
+              const clean = (s: any) => (typeof s === 'string' ? s.trim() : '');
+              const nomeRespMesa = clean(mesaObj?.nomeResponsavel);
+              const nomeFuncMesa = clean(mesaObj?.funcionarioResponsavel?.nome);
+              let responsavel = 
+                 nomeRespMesa ||
+                 clean(cv.venda?.responsavelNome) ||
+                 'N/A';
+              let funcionario = 
+                 nomeFuncMesa ||
+                 clean(cv.venda?.funcionario?.nome) ||
+                 clean((cv.venda as any)?.funcionarioAberturaNome) ||
+                 clean((cv.venda as any)?.funcionarioNome) ||
+                 'N/A';
+              // Se o responsável for igual ao atendente, tentar corrigir usando snapshot da venda
+              if (responsavel !== 'N/A' && funcionario !== 'N/A' && responsavel === funcionario) {
+                 const respAlt = clean(cv.venda?.responsavelNome);
+                 if (respAlt && respAlt !== funcionario) {
+                   responsavel = respAlt;
+                 } else {
+                   // Se não há alternativa clara, evitar duplicar o atendente
+                   responsavel = 'N/A';
+                 }
+               }
+               const numeroMesa = mesaObj?.numero;
+               const idMesa = mesaObj?._id;
+   
               return (
                 <View key={`${cv.venda._id}-${idx}`} style={styles.vendaCard}>
                   <View style={styles.vendaHeader}>
@@ -339,9 +368,8 @@ export default function CaixaScreen() {
                     </Text>
                     <Text style={styles.vendaTotal}>R$ {cv.valor.toFixed(2)}</Text>
                   </View>
-                  <Text style={styles.vendaInfo}>
-                    {mesaObj || cv.venda?.responsavelNome ? `Responsável: ${responsavel}` : `Atendente: ${responsavel}`}
-                  </Text>
+                  <Text style={styles.vendaInfo}>Responsável: {responsavel}</Text>
+                  <Text style={styles.vendaInfo}>Atendente: {funcionario}</Text>
                   {mesaObj ? (
                     <Text style={styles.vendaInfo}>
                       Mesa: Nº {numeroMesa != null ? String(numeroMesa) : '-'} | ID {idMesa ?? '-'}

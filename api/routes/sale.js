@@ -10,7 +10,7 @@ const router = express.Router();
 // Criar nova venda
 router.post('/create', async (req, res) => {
   try {
-    const { funcionario, cliente, mesa, tipoVenda, nomeComanda, valorTotal, observacoes } = req.body;
+    const { funcionario, cliente, mesa, tipoVenda, nomeComanda, valorTotal, observacoes } = req.body
 
     // Verificar se funcionário existe
     if (!funcionario || funcionario.trim() === '') {
@@ -23,6 +23,30 @@ router.post('/create', async (req, res) => {
       if (!funcionarioExiste) {
         return res.status(400).json({ error: 'Funcionário não encontrado' });
       }
+    }
+
+    // Resolver ID de funcionário (mapeando admin-fixo para um funcionário padrão)
+    let funcionarioResolvedId = null;
+    if (funcionario !== 'admin-fixo') {
+      funcionarioResolvedId = funcionario;
+    } else {
+      let funcionarioPadrao = await Employee.findOne({ nome: 'Administrador' })
+        || await Employee.findOne({ email: 'admin@bar.com' })
+        || await Employee.findOne({ status: 'ativo' })
+        || await Employee.findOne();
+      if (!funcionarioPadrao) {
+        funcionarioPadrao = new Employee({
+          nome: 'Administrador',
+          email: 'admin@bar.com',
+          telefone: '(00) 00000-0000',
+          cargo: 'Gerente',
+          salario: 0,
+          dataAdmissao: new Date(),
+          status: 'ativo'
+        });
+        await funcionarioPadrao.save();
+      }
+      funcionarioResolvedId = funcionarioPadrao?._id || null;
     }
 
     // Verificar se cliente existe (opcional)
@@ -53,13 +77,9 @@ router.post('/create', async (req, res) => {
     const dadosVenda = {
       itens: [],
       status: 'aberta',
-      tipoVenda: tipoVenda || 'balcao'
+      tipoVenda: tipoVenda || 'balcao',
+      funcionario: funcionarioResolvedId || undefined
     };
-
-    // Adicionar funcionario apenas se não for admin-fixo
-    if (funcionario !== 'admin-fixo') {
-      dadosVenda.funcionario = funcionario;
-    }
 
     // Adicionar nomeComanda se fornecido
     if (nomeComanda && nomeComanda.trim() !== '') {
@@ -89,7 +109,7 @@ router.post('/create', async (req, res) => {
     const novaVenda = new Sale(dadosVenda);
     await novaVenda.save();
     
-    // Se for venda de mesa, atualizar status da mesa
+    // Se for venda de mesa, atualizar status da mesa e linkar vendaAtual (sem alterar responsável)
     if (tipoVenda === 'mesa' && mesa) {
       const Mesa = (await import('../models/Mesa.js')).default;
       await Mesa.findByIdAndUpdate(mesa, {
@@ -430,25 +450,68 @@ router.put('/:id/finalize', async (req, res) => {
     venda.subtotal = subtotal;
     venda.total = Math.max(0, subtotal - (venda.desconto || 0));
 
-    // Capturar snapshot do responsável da mesa antes de liberar a mesa
+    // Capturar snapshots de responsável e atendente (prioriza abertura da mesa)
+    let atendenteDefinidoPorMesa = false;
     if (venda.mesa) {
       const Mesa = (await import('../models/Mesa.js')).default;
       const mesaDoc = await Mesa.findById(venda.mesa).populate('funcionarioResponsavel', 'nome');
       if (mesaDoc) {
-        venda.responsavelNome = mesaDoc?.funcionarioResponsavel?.nome || mesaDoc?.nomeResponsavel || venda.responsavelNome || '';
+        // Responsável: prioriza nomeResponsavel da mesa; fallback para nomeComanda
+        const nomeRespMesa = mesaDoc?.nomeResponsavel || '';
+        venda.responsavelNome = (nomeRespMesa && nomeRespMesa.trim()) || (venda.nomeComanda || '').trim() || venda.responsavelNome || '';
         venda.responsavelFuncionario = mesaDoc?.funcionarioResponsavel?._id || venda.responsavelFuncionario || null;
+
+        // Atendente: deve refletir quem abriu a mesa (funcionarioResponsavel)
+        const atendenteMesaId = mesaDoc?.funcionarioResponsavel?._id || null;
+        const atendenteMesaNome = mesaDoc?.funcionarioResponsavel?.nome || null;
+        if (atendenteMesaId && atendenteMesaNome) {
+          // Atualiza snapshots de atendente
+          venda.funcionarioNome = atendenteMesaNome;
+          venda.funcionarioId = atendenteMesaId;
+          venda.funcionarioAberturaNome = venda.funcionarioAberturaNome || atendenteMesaNome;
+          venda.funcionarioAberturaId = venda.funcionarioAberturaId || atendenteMesaId;
+          // Atualiza o relacionamento para refletir o atendente correto na UI que usa venda.funcionario
+          venda.funcionario = atendenteMesaId;
+          atendenteDefinidoPorMesa = true;
+        }
+      } else {
+        // Fallback: usar nome da comanda para responsável
+        venda.responsavelNome = (venda.nomeComanda || '').trim() || venda.responsavelNome || '';
+      }
+    } else {
+      // Fallback global: usar nome da comanda
+      venda.responsavelNome = (venda.nomeComanda || '').trim() || venda.responsavelNome || '';
+    }
+
+    // Caso não tenha atendente definido pela mesa, usar o funcionário da venda como fallback
+    if (!atendenteDefinidoPorMesa && venda.funcionario) {
+      try {
+        const funcionarioDoc = await Employee.findById(venda.funcionario);
+        if (funcionarioDoc) {
+          venda.funcionarioNome = funcionarioDoc.nome;
+          venda.funcionarioId = funcionarioDoc._id;
+          if (!venda.funcionarioAberturaNome) venda.funcionarioAberturaNome = funcionarioDoc.nome;
+          if (!venda.funcionarioAberturaId) venda.funcionarioAberturaId = funcionarioDoc._id;
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar funcionário da venda:', err);
       }
     }
 
+    // Fallback final para nome de atendente caso ainda não tenha sido possível definir
+    if (!venda.funcionarioNome && !venda.funcionarioAberturaNome) {
+      venda.funcionarioAberturaNome = 'Administrador';
+    }
+
+    // Atualizar venda com snapshots
     venda.status = 'finalizada';
     venda.dataFinalizacao = new Date();
     await venda.save();
-    
-    // Registrar venda no caixa (autoabrir se não existir)
+
+    // Registrar venda no caixa
     try {
       let caixaAberto = await Caixa.findOne({ status: 'aberto' });
       if (!caixaAberto) {
-        console.log('⚠️ Nenhum caixa aberto encontrado, criando automaticamente...');
         const funcionario = await Employee.findOne({ status: 'ativo' }) || await Employee.findOne();
         if (!funcionario) {
           const funcionarioPadrao = new Employee({
@@ -474,7 +537,6 @@ router.put('/:id/finalize', async (req, res) => {
           });
         }
         await caixaAberto.save();
-        console.log('✅ Caixa aberto automaticamente:', caixaAberto._id);
       }
 
       const valorVenda = Number.isFinite(venda.total)
@@ -492,13 +554,13 @@ router.put('/:id/finalize', async (req, res) => {
         dataVenda: new Date()
       });
 
-      // Atualizar totais do caixa com segurança
       caixaAberto.totalVendas = Number(caixaAberto.totalVendas || 0) + valorVenda;
       switch (forma) {
         case 'dinheiro':
           caixaAberto.totalDinheiro = Number(caixaAberto.totalDinheiro || 0) + valorVenda;
           break;
         case 'cartao':
+        case 'cartão':
           caixaAberto.totalCartao = Number(caixaAberto.totalCartao || 0) + valorVenda;
           break;
         case 'pix':
@@ -507,13 +569,11 @@ router.put('/:id/finalize', async (req, res) => {
       }
 
       await caixaAberto.save();
-      console.log(`✅ Venda ${venda._id} registrada no caixa - Valor: R$ ${valorVenda}`);
     } catch (caixaError) {
       console.error('Erro ao registrar venda no caixa:', caixaError);
-      // Não falha a finalização da venda se houver erro no caixa
     }
-    
-    // Se a venda está associada a uma mesa, limpar os dados da mesa (completo)
+
+    // Limpar mesa
     if (venda.mesa) {
       const Mesa = (await import('../models/Mesa.js')).default;
       await Mesa.findByIdAndUpdate(venda.mesa, {
@@ -526,7 +586,7 @@ router.put('/:id/finalize', async (req, res) => {
         nomeResponsavel: ''
       });
     }
-    
+
     const vendaFinalizada = await Sale.findById(venda._id)
       .populate('funcionario', 'nome')
       .populate('cliente', 'nome')

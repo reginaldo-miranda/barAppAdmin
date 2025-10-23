@@ -54,6 +54,26 @@ const saleSchema = new mongoose.Schema({
     ref: 'Employee',
     default: null
   },
+  // Snapshot do funcionário que finalizou a venda
+  funcionarioNome: {
+    type: String,
+    default: null
+  },
+  funcionarioId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
+  // Snapshot do funcionário que abriu a mesa
+  funcionarioAberturaNome: {
+    type: String,
+    default: null
+  },
+  funcionarioAberturaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee',
+    default: null
+  },
   numeroComanda: {
     type: String,
     unique: true,
