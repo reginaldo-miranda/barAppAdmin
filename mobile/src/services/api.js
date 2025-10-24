@@ -8,35 +8,33 @@ import { getSecureItem, STORAGE_KEYS } from './storage';
 function resolveApiBaseUrl() {
   const DEFAULT_PORT = 4000;
 
-  // 1) Permite override via AsyncStorage (carregado async no interceptor)
-  //    Aqui só definimos um fallback síncrono, override real é aplicado no request.
-
-  // 2) Ambiente Web: usa hostname atual e porta 4000
+  // Ambiente Web
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     const hostname = window.location.hostname || 'localhost';
     return `http://${hostname}:${DEFAULT_PORT}/api`;
   }
 
-  // 3) Expo Go / Native: tenta obter IP do dev server
-  const expoHost = Constants?.expoGo?.developer?.host; // ex: "192.168.0.10:19000"
+  // Expo Go / Native
+  const expoHost = Constants?.expoGo?.developer?.host;
   if (expoHost) {
-    const hostIp = expoHost.split(':')[0];
-    return `http://${hostIp}:${DEFAULT_PORT}/api`;
+    const hostPart = expoHost.split(':')[0];
+    return `http://${hostPart}:${DEFAULT_PORT}/api`;
   }
 
-  // 4) Fallback final
+  // Fallback
   return `http://localhost:${DEFAULT_PORT}/api`;
 }
 
-const API_BASE_URL = resolveApiBaseUrl();
-export const API_URL = API_BASE_URL;
+// Primeiro: variável de ambiente pública
+const ENV_BASE_URL = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
+
+// Segundo: override salvo em storage
+let initialBaseUrl = ENV_BASE_URL || resolveApiBaseUrl();
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: initialBaseUrl,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // Interceptor para adicionar token e permitir override dinâmico de baseURL
@@ -54,7 +52,6 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      // API Key opcional (armazenada com segurança)
       const apiKey = await getSecureItem(STORAGE_KEYS.API_AUTH_KEY);
       if (apiKey) {
         config.headers['X-API-Key'] = apiKey;
@@ -64,57 +61,38 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Interceptor para tratar respostas e erros
-api.interceptors.response.use(
-  (response) => {
-    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
-    return response;
-  },
-  async (error) => {
-    console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url}`);
-    console.error('Error details:', error.response?.data || error.message);
-    
-    if (error.response?.status === 401) {
-      // Token expirado ou inválido
-      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      await AsyncStorage.removeItem('userData');
-      // Aqui você pode redirecionar para tela de login
-    }
-    return Promise.reject(error);
-  }
-);
+// Helper: persistir override no storage (para ajustes via tela de Configurações)
+export async function setApiBaseUrl(url) {
+  await AsyncStorage.setItem(STORAGE_KEYS.API_BASE_URL, url);
+}
 
-export default api;
-
-// Utilitário: testar conexão com baseURL opcional e API key opcional
+// Adicionado: função de teste de conexão da API usada pela tela de Configurações
 export async function testApiConnection(baseUrl, apiKey) {
-  const client = axios.create({
-    baseURL: baseUrl || API_BASE_URL,
-    timeout: 5000,
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (apiKey) {
-    client.interceptors.request.use((cfg) => {
-      cfg.headers['X-API-Key'] = apiKey;
-      return cfg;
-    });
-  }
   try {
-    const res = await client.get('/tipo/list');
-    return { ok: true, status: res.status, data: res.data };
-  } catch (e) {
-    const status = e?.response?.status || 0;
-    const reason = e?.response?.data || e?.message || 'Erro desconhecido';
+    const effectiveBase = (baseUrl || initialBaseUrl || API_URL || '').replace(/\/$/, '');
+    const url = `${effectiveBase}/tipo/list`;
+    const res = await axios.get(url, {
+      timeout: 7000,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+      },
+    });
+    return { ok: true, status: res.status };
+  } catch (error) {
+    const status = error?.response?.status ?? 0;
+    const reason = error?.response?.data ?? error?.message ?? 'Erro desconhecido';
     return { ok: false, status, reason };
   }
 }
 
-// Serviços específicos
+export const API_URL = initialBaseUrl;
+export default api;
+
+// Serviços específicos (restaurados)
 export const authService = {
   login: (credentials) => api.post('/auth/login', credentials),
   logout: () => api.post('/auth/logout'),
@@ -145,7 +123,6 @@ export const productService = {
   delete: (id) => api.delete(`/product/${id}`),
 };
 
-// Alias com retorno direto dos dados para compatibilidade dos componentes
 export const categoryService = {
   getAll: async () => (await api.get('/categoria/list')).data,
 };
@@ -207,7 +184,6 @@ export const comandaService = {
   finalize: (id, payload) => saleService.finalize(id, payload),
 };
 
-// Novo serviço: Caixa
 export const caixaService = {
   statusAberto: () => api.get('/caixa/status/aberto'),
   abrir: (funcionarioId, valorAbertura = 0, observacoes = '') => 

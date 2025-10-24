@@ -15,8 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenIdentifier from '../src/components/ScreenIdentifier';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS, getSecureItem, setSecureItem } from '../src/services/storage';
-import { testApiConnection } from '../src/services/api';
-import { scanWifiNetworks, connectToWifi } from '../src/services/wifi';
+import { testApiConnection, API_URL } from '../src/services/api';
+import { scanWifiNetworks, connectToWifi, isWifiConnectionRealPossible } from '../src/services/wifi';
 
 export default function ConfiguracoesScreen() {
   // API
@@ -34,6 +34,9 @@ export default function ConfiguracoesScreen() {
   const [scanning, setScanning] = useState(false);
   const [savingWifi, setSavingWifi] = useState(false);
   const [savingApi, setSavingApi] = useState(false);
+  const [testingWifi, setTestingWifi] = useState(false);
+  const [wifiTestStatus, setWifiTestStatus] = useState<null | { ok: boolean; message: string }>(null);
+  const [wifiRealCapable, setWifiRealCapable] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -43,6 +46,8 @@ export default function ConfiguracoesScreen() {
         const storedSsid = await getSecureItem(STORAGE_KEYS.WIFI_SSID);
         const storedPwd = await getSecureItem(STORAGE_KEYS.WIFI_PASSWORD);
         if (storedUrl) setApiUrl(storedUrl);
+        // Fallback automático para API_URL detectada se não houver valor salvo
+        if (!storedUrl) setApiUrl(API_URL);
         if (storedKey) setApiKey(storedKey);
         if (storedSsid) setSelectedSSID(storedSsid);
         if (storedPwd) setWifiPassword(storedPwd);
@@ -127,6 +132,49 @@ export default function ConfiguracoesScreen() {
     }
   };
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const capable = await isWifiConnectionRealPossible();
+        setWifiRealCapable(capable);
+      } catch {
+        setWifiRealCapable(false);
+      }
+    })();
+  }, []);
+
+  const handleTestWifi = async () => {
+    setWifiTestStatus(null);
+    const realPossible = await isWifiConnectionRealPossible();
+    if (!selectedSSID) {
+      Alert.alert('Teste de WiFi', 'Informe ou selecione uma rede WiFi (SSID).');
+      setWifiTestStatus({ ok: false, message: 'SSID ausente.' });
+      return;
+    }
+    if (!wifiPassword) {
+      Alert.alert('Teste de WiFi', 'Informe a senha da rede WiFi.');
+      setWifiTestStatus({ ok: false, message: 'Senha ausente.' });
+      return;
+    }
+    setTestingWifi(true);
+    try {
+      const res = await connectToWifi(selectedSSID, wifiPassword);
+      const msg = res?.success
+        ? realPossible
+          ? `Conexão bem-sucedida à rede ${selectedSSID}.`
+          : `Teste simulado concluído com sucesso para ${selectedSSID} (Web/Expo Go/iOS).`
+        : 'Falha ao conectar.';
+      setWifiTestStatus({ ok: !!res?.success, message: msg });
+      Alert.alert('Teste de WiFi', msg);
+    } catch (e) {
+      const msg = realPossible ? 'Falha ao conectar. Verifique SSID/senha e permissões.' : 'Falha ao simular teste. Verifique SSID/senha.';
+      setWifiTestStatus({ ok: false, message: msg });
+      Alert.alert('Teste de WiFi', msg);
+    } finally {
+      setTestingWifi(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <ScreenIdentifier screenName="Configurações" />
@@ -153,6 +201,12 @@ export default function ConfiguracoesScreen() {
             autoCapitalize="none"
             keyboardType={Platform.OS === 'ios' ? 'url' : 'default'}
           />
+          <View style={[styles.row, { marginTop: 10 }]}> 
+            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => setApiUrl(API_URL)} activeOpacity={0.8}>
+              <Ionicons name="flash" size={18} color="#2196F3" />
+              <Text style={[styles.buttonText, { color: '#2196F3' }]}> Preencher automaticamente</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.formGroup}>
@@ -204,6 +258,14 @@ export default function ConfiguracoesScreen() {
         <View style={styles.sectionHeader}>
           <Ionicons name="wifi" size={20} color="#2196F3" />
           <Text style={styles.sectionTitle}>Configuração de WiFi</Text>
+          {wifiRealCapable !== null && (
+            <View style={[styles.statusBadge, wifiRealCapable ? styles.statusBadgeReal : styles.statusBadgeSimulated]}>
+              <Ionicons name={wifiRealCapable ? 'checkmark' : 'information-circle'} size={14} color={wifiRealCapable ? '#2e7d32' : '#1a237e'} />
+              <Text style={[styles.statusBadgeText, { color: wifiRealCapable ? '#2e7d32' : '#1a237e' }]}>
+                {wifiRealCapable ? 'Modo: Real' : 'Modo: Simulado'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Campo para SSID manual */}
@@ -227,7 +289,30 @@ export default function ConfiguracoesScreen() {
                 </>
               )}
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleTestWifi} activeOpacity={0.8}>
+              {testingWifi ? (
+                <ActivityIndicator color="#2196F3" />
+              ) : (
+                <>
+                  <Ionicons name="wifi" size={18} color="#2196F3" />
+                  <Text style={[styles.buttonText, { color: '#2196F3' }]}> Testar WiFi</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => setWifiTestStatus(null)} activeOpacity={0.8}>
+              <Ionicons name="close-circle" size={18} color="#9E9E9E" />
+              <Text style={[styles.buttonText, { color: '#9E9E9E' }]}> Limpar resultado</Text>
+            </TouchableOpacity>
           </View>
+
+          {wifiTestStatus && (
+            <View style={[styles.testResult, wifiTestStatus.ok ? styles.testOk : styles.testFail]}>
+              <Ionicons name={wifiTestStatus.ok ? 'checkmark-circle' : 'alert-circle'} size={18} color={wifiTestStatus.ok ? '#2e7d32' : '#b71c1c'} />
+              <Text style={[styles.testResultText, { color: wifiTestStatus.ok ? '#2e7d32' : '#b71c1c' }]}>
+                {wifiTestStatus.message}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.formGroup}>
@@ -312,6 +397,11 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#fff', fontWeight: 'bold' },
   secondaryButton: { backgroundColor: '#E3F2FD', borderWidth: 1, borderColor: '#BBDEFB' },
   buttonText: { fontWeight: '600' },
+
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 'auto', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E3F2FD', borderWidth: 1, borderColor: '#BBDEFB' },
+  statusBadgeReal: { backgroundColor: '#E8F5E9', borderColor: '#C8E6C9' },
+  statusBadgeSimulated: { backgroundColor: '#EDE7F6', borderColor: '#D1C4E9' },
+  statusBadgeText: { fontSize: 12, fontWeight: '600' },
 
   testResult: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: '#f5f5f5' },
   testOk: { backgroundColor: '#E8F5E9' },

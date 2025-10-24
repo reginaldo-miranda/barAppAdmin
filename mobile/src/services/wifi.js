@@ -75,3 +75,10 @@ export async function connectToWifi(ssid, password) {
   await lib.connectToProtectedSSID(ssid, password, false);
   return { success: true, ssid };
 }
+
+export async function isWifiConnectionRealPossible() {
+  // Conexão real só é possível em Android nativo com biblioteca disponível
+  if (Platform.OS !== 'android') return false;
+  const lib = await ensureWifiLib();
+  return !!(lib && lib.connectToProtectedSSID);
+}
