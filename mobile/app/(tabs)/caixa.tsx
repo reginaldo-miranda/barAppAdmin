@@ -67,6 +67,31 @@ export default function CaixaScreen() {
   const [hasCaixaAberto, setHasCaixaAberto] = useState<boolean>(false);
   // Map de detalhes de mesa por venda._id (quando populate faltar)
   const [mesaInfoBySale, setMesaInfoBySale] = useState<Record<string, any>>({});
+  // Filtro por data (padrão hoje)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Helpers e cálculos para filtro por data e subtotais
+  const formatSelectedDate = selectedDate.toLocaleDateString('pt-BR');
+  const prevDay = () => setSelectedDate((d: Date) => new Date(d.getTime() - 86400000));
+  const nextDay = () => setSelectedDate((d: Date) => new Date(d.getTime() + 86400000));
+
+  const filteredCaixaVendas: CaixaVenda[] = caixaVendas.filter((cv: CaixaVenda) => {
+    const dv = new Date(cv.dataVenda || cv.venda?.createdAt);
+    return dv.toDateString() === selectedDate.toDateString();
+  });
+
+  const paymentTotals: Record<string, number> = filteredCaixaVendas.reduce((acc: Record<string, number>, cv: CaixaVenda) => {
+    const m = String(cv.formaPagamento || '').toLowerCase();
+    const v = Number(cv.valor ?? cv.venda?.total ?? 0);
+    acc[m] = (acc[m] || 0) + v;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const formatMethodLabel = (m: string) => {
+    const cleaned = (m || '').trim();
+    if (!cleaned) return 'Indefinido';
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  };
 
   const loadVendas = async () => {
     try {
@@ -284,31 +309,27 @@ export default function CaixaScreen() {
         ) : (
           vendas.map((venda) => (
             <View key={venda._id} style={styles.vendaCard}>
-              <View style={styles.vendaHeader}>
+              <View style={styles.rowLine}>
                 <Text style={styles.vendaTitle}>
                   {getVendaTitle(venda)}
                 </Text>
-                <Text style={styles.vendaTotal}>
-                  R$ {calcularTotal(venda).toFixed(2)}
-                </Text>
+                <View style={styles.rowRight}>
+                  <Text style={styles.vendaTotal}>
+                    R$ {calcularTotal(venda).toFixed(2)}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.rowAction}
+                    onPress={() => abrirModalFinalizacao(venda)}
+                    accessibilityLabel="Finalizar venda"
+                  >
+                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              
-              <Text style={styles.vendaInfo}>
-                Funcionário: {venda.funcionario?.nome || 'N/A'}
-              </Text>
-              
-              <Text style={styles.vendaInfo}>
-                Itens: {venda.itens.length}
-              </Text>
-              
-              <View style={styles.vendaActions}>
-                <TouchableOpacity 
-                  style={styles.finalizarButton}
-                  onPress={() => abrirModalFinalizacao(venda)}
-                >
-                  <Ionicons name="checkmark-circle" size={20} color="white" />
-                  <Text style={styles.finalizarButtonText}>Finalizar</Text>
-                </TouchableOpacity>
+              <View style={styles.rowLine}>
+                <Text style={styles.vendaInfoCompact}>
+                  Itens: {venda.itens.length} | Funcionário: {venda.funcionario?.nome || 'N/A'}
+                </Text>
               </View>
             </View>
           ))
@@ -322,65 +343,78 @@ export default function CaixaScreen() {
             <Text style={styles.emptyText}>Nenhum caixa aberto</Text>
           </View>
         ) : (
-          caixaVendas.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="list-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>Nenhuma venda registrada no caixa</Text>
+          <>
+            <View style={styles.filterBar}>
+              <TouchableOpacity onPress={prevDay} accessibilityLabel="Dia anterior">
+                <Ionicons name="chevron-back" size={20} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.dateDisplay}>{formatSelectedDate}</Text>
+              <TouchableOpacity onPress={nextDay} accessibilityLabel="Próximo dia">
+                <Ionicons name="chevron-forward" size={20} color="#333" />
+              </TouchableOpacity>
             </View>
-          ) : (
-            caixaVendas.map((cv, idx) => {
-              // Priorizar mesa detalhada buscada do backend, se existir
-              const mesaObj: any = mesaInfoBySale[cv.venda._id] || ((cv.venda.mesa && typeof cv.venda.mesa === 'object') ? cv.venda.mesa : undefined);
-              
-              const clean = (s: any) => (typeof s === 'string' ? s.trim() : '');
-              const nomeRespMesa = clean(mesaObj?.nomeResponsavel);
-              const nomeFuncMesa = clean(mesaObj?.funcionarioResponsavel?.nome);
-              let responsavel = 
-                 nomeRespMesa ||
-                 clean(cv.venda?.responsavelNome) ||
-                 'N/A';
-              let funcionario = 
-                 nomeFuncMesa ||
-                 clean(cv.venda?.funcionario?.nome) ||
-                 clean((cv.venda as any)?.funcionarioAberturaNome) ||
-                 clean((cv.venda as any)?.funcionarioNome) ||
-                 'N/A';
-              // Se o responsável for igual ao atendente, tentar corrigir usando snapshot da venda
-              if (responsavel !== 'N/A' && funcionario !== 'N/A' && responsavel === funcionario) {
-                 const respAlt = clean(cv.venda?.responsavelNome);
-                 if (respAlt && respAlt !== funcionario) {
-                   responsavel = respAlt;
-                 } else {
-                   // Se não há alternativa clara, evitar duplicar o atendente
-                   responsavel = 'N/A';
-                 }
-               }
-               const numeroMesa = mesaObj?.numero;
-               const idMesa = mesaObj?._id;
-   
-              return (
-                <View key={`${cv.venda._id}-${idx}`} style={styles.vendaCard}>
-                  <View style={styles.vendaHeader}>
-                    <Text style={styles.vendaTitle}>
-                      {mesaObj
-                        ? (mesaObj?.nome || (numeroMesa != null ? `Mesa ${numeroMesa}` : 'Mesa'))
-                        : getVendaTitle(cv.venda)}
-                    </Text>
-                    <Text style={styles.vendaTotal}>R$ {cv.valor.toFixed(2)}</Text>
+
+            <View style={styles.summaryBar}>
+              {Object.entries(paymentTotals as Record<string, number>).length === 0 ? (
+                <Text style={styles.summaryItem}>Sem subtotais</Text>
+              ) : (
+                Object.entries(paymentTotals as Record<string, number>).map(([method, total]) => (
+                  <Text key={method} style={styles.summaryItem}>
+                    {formatMethodLabel(method)}: R$ {total.toFixed(2)}
+                  </Text>
+                ))
+              )}
+            </View>
+
+            {filteredCaixaVendas.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="list-outline" size={64} color="#ccc" />
+                <Text style={styles.emptyText}>Nenhuma venda registrada no caixa</Text>
+              </View>
+            ) : (
+              filteredCaixaVendas.map((cv, idx) => {
+                const mesaObj: any = mesaInfoBySale[cv.venda._id] || ((cv.venda.mesa && typeof cv.venda.mesa === 'object') ? cv.venda.mesa : undefined);
+                const clean = (s: any) => (typeof s === 'string' ? s.trim() : '');
+                const nomeRespMesa = clean(mesaObj?.nomeResponsavel);
+                const nomeFuncMesa = clean(mesaObj?.funcionarioResponsavel?.nome);
+                let responsavel = 
+                  nomeRespMesa ||
+                  clean(cv.venda?.responsavelNome) ||
+                  'N/A';
+                let funcionario = 
+                  nomeFuncMesa ||
+                  clean(cv.venda?.funcionario?.nome) ||
+                  clean((cv.venda as any)?.funcionarioAberturaNome) ||
+                  clean((cv.venda as any)?.funcionarioNome) ||
+                  'N/A';
+                if (responsavel !== 'N/A' && funcionario !== 'N/A' && responsavel === funcionario) {
+                  const respAlt = clean(cv.venda?.responsavelNome);
+                  if (respAlt && respAlt !== funcionario) {
+                    responsavel = respAlt;
+                  } else {
+                    responsavel = 'N/A';
+                  }
+                }
+                return (
+                  <View key={`${cv.venda._id}-${idx}`} style={styles.vendaCard}>
+                    <View style={styles.rowLine}>
+                      <Text style={styles.vendaTitle}>
+                        {mesaObj
+                          ? (mesaObj?.nome || (mesaObj?.numero != null ? `Mesa ${mesaObj?.numero}` : 'Mesa'))
+                          : getVendaTitle(cv.venda)}
+                      </Text>
+                      <Text style={styles.vendaTotal}>R$ {cv.valor.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.rowLine}>
+                      <Text style={styles.vendaInfoCompact}>
+                        Resp: {responsavel} | Atend: {funcionario} | Pgto: {cv.formaPagamento} | Itens: {cv.venda?.itens?.length ?? 0}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.vendaInfo}>Responsável: {responsavel}</Text>
-                  <Text style={styles.vendaInfo}>Atendente: {funcionario}</Text>
-                  {mesaObj ? (
-                    <Text style={styles.vendaInfo}>
-                      Mesa: Nº {numeroMesa != null ? String(numeroMesa) : '-'} | ID {idMesa ?? '-'}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.vendaInfo}>Pagamento: {cv.formaPagamento}</Text>
-                  <Text style={styles.vendaInfo}>Itens: {cv.venda?.itens?.length ?? 0}</Text>
-                </View>
-              );
-            })
-          )
+                );
+              })
+            )}
+          </>
         )}
 
       </ScrollView>
@@ -507,13 +541,31 @@ const styles = StyleSheet.create({
   vendaCard: {
     backgroundColor: 'white',
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
+    padding: 6,
+    marginBottom: 6,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  rowLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowAction: {
+    marginLeft: 6,
+  },
+  vendaInfoCompact: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 6,
   },
   vendaHeader: {
     flexDirection: 'row',
@@ -645,5 +697,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     fontWeight: 'bold',
+  },
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 8,
+  },
+  dateDisplay: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 12,
+  },
+  summaryItem: {
+    fontSize: 13,
+    color: '#333',
+    marginRight: 12,
+    marginVertical: 3,
   },
 });
