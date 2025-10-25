@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'
 import {
   Modal,
   View,
@@ -8,10 +8,11 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { Ionicons } from '@expo/vector-icons';
-import { employeeService, customerService } from '../services/api';
+  Platform,
+} from 'react-native'
+import { Picker } from '@react-native-picker/picker'
+import { Ionicons } from '@expo/vector-icons'
+import { employeeService, customerService } from '../services/api'
 
 interface Funcionario {
   _id: string;
@@ -41,8 +42,9 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
 
   useEffect(() => {
     if (visible) {
-      loadFuncionarios();
-      loadClientes();
+      setLoading(true);
+      Promise.all([loadFuncionarios(), loadClientes()])
+        .finally(() => setLoading(false));
     }
   }, [visible]);
 
@@ -50,6 +52,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
     try {
       const response = await employeeService.getAll();
       setFuncionarios(response.data || []);
+      console.log('👤 Funcionários carregados:', (response.data || []).length);
     } catch (error) {
       console.error('Erro ao carregar funcionários:', error);
     }
@@ -74,18 +77,22 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
   };
 
   const handleSubmit = () => {
-    if (!nomeComanda.trim()) {
+    const nome = (nomeComanda || '').trim();
+
+    // Nome da comanda é obrigatório
+    if (!nome) {
       alert('Digite um nome para a comanda');
       return;
     }
 
+    // Funcionário é obrigatório
     if (!selectedFuncionario) {
       alert('Selecione um funcionário para criar a comanda');
       return;
     }
 
     onSubmit({ 
-      nomeComanda: nomeComanda.trim(),
+      nomeComanda: nome,
       funcionario: selectedFuncionario,
       cliente: selectedCliente || null,
       valorTotalEstimado: parseFloat(valorTotalEstimado) || 0,
@@ -103,93 +110,218 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
   return (
     <Modal
       animationType="slide"
-      transparent={true}
+      transparent={Platform.OS === 'ios'}
       visible={visible}
       onRequestClose={onClose}
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : 'fullScreen'}
+      hardwareAccelerated
+      statusBarTranslucent
+      supportedOrientations={["portrait"]}
+      onShow={() => console.log('🪟 Modal Nova Comanda exibida')}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+      {Platform.OS === 'ios' ? (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Nova Comanda</Text>
+            {loading ? (
+              <View style={{flex:1, alignItems:'center', justifyContent:'center'}}>
+                <ActivityIndicator size="large" color="#2196F3" />
+                <Text style={{marginTop:12, color:'#666'}}>Carregando dados...</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                {/* Seleção de Funcionário */}
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Funcionário: *</Text>
+                  {!loading && funcionarios.length === 0 ? (
+                    <Text style={{color:'#d32f2f', marginBottom:8}}>Nenhum funcionário encontrado. Verifique a conexão com a API.</Text>
+                  ) : null}
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={selectedFuncionario}
+                      onValueChange={(itemValue) => setSelectedFuncionario(itemValue)}
+                      style={styles.picker}
+                      testID="picker-funcionario"
+                    >
+                      <Picker.Item label="Selecione um funcionário..." value="" />
+                      {funcionarios.map((funcionario) => (
+                        <Picker.Item 
+                          key={funcionario._id} 
+                          label={funcionario.nome} 
+                          value={funcionario._id} 
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Seleção de Cliente */}
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Cliente (opcional):</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={selectedCliente}
+                      onValueChange={(itemValue) => setSelectedCliente(itemValue)}
+                      style={styles.picker}
+                      testID="picker-cliente"
+                    >
+                      <Picker.Item label="Cliente avulso" value="" />
+                      {clientes.map((cliente) => (
+                        <Picker.Item 
+                          key={cliente._id} 
+                          label={cliente.nome} 
+                          value={cliente._id} 
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Nome da Comanda */}
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Nome da Comanda: *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: Mesa 5 - João"
+                    value={nomeComanda}
+                    onChangeText={setNomeComanda}
+                  />
+                </View>
+
+                {/* Valor Total Estimado */}
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Valor Total Estimado:</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0.00"
+                    value={valorTotalEstimado}
+                    onChangeText={setValorTotalEstimado}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                {/* Observações */}
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Observações:</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Ex: Cliente preferencial, desconto especial..."
+                    value={observacoes}
+                    onChangeText={setObservacoes}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity style={[styles.button, styles.buttonCancel]} onPress={onClose}>
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, styles.buttonCreate]} 
+                onPress={handleSubmit}
+              >
+                <Text style={styles.buttonText}>{loading ? 'Criando...' : 'Criar Comanda'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.modalContent, { width: '100%', height: '100%' }]}>
           <Text style={styles.modalTitle}>Nova Comanda</Text>
-          
-          <ScrollView style={styles.scrollContent}>
-            {/* Nome da Comanda */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Nome da Comanda: *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: Mesa 5, João Silva, Aniversário..."
-                value={nomeComanda}
-                onChangeText={setNomeComanda}
-              />
+          {loading ? (
+            <View style={{flex:1, alignItems:'center', justifyContent:'center'}}>
+              <ActivityIndicator size="large" color="#2196F3" />
+              <Text style={{marginTop:12, color:'#666'}}>Carregando dados...</Text>
             </View>
-
-            {/* Seleção de Funcionário */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Funcionário: *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedFuncionario}
-                  onValueChange={(itemValue) => setSelectedFuncionario(itemValue)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Selecione um funcionário..." value="" />
-                  {funcionarios.map((funcionario) => (
-                    <Picker.Item 
-                      key={funcionario._id} 
-                      label={funcionario.nome} 
-                      value={funcionario._id} 
-                    />
-                  ))}
-                </Picker>
+          ) : (
+            <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+              {/* Seleção de Funcionário */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Funcionário: *</Text>
+                {!loading && funcionarios.length === 0 ? (
+                  <Text style={{color:'#d32f2f', marginBottom:8}}>Nenhum funcionário encontrado. Verifique a conexão com a API.</Text>
+                ) : null}
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={selectedFuncionario}
+                    onValueChange={(itemValue) => setSelectedFuncionario(itemValue)}
+                    style={styles.picker}
+                    testID="picker-funcionario"
+                  >
+                    <Picker.Item label="Selecione um funcionário..." value="" />
+                    {funcionarios.map((funcionario) => (
+                      <Picker.Item 
+                        key={funcionario._id} 
+                        label={funcionario.nome} 
+                        value={funcionario._id} 
+                      />
+                    ))}
+                  </Picker>
+                </View>
               </View>
-            </View>
 
-            {/* Seleção de Cliente */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Cliente (opcional):</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedCliente}
-                  onValueChange={(itemValue) => setSelectedCliente(itemValue)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Cliente avulso" value="" />
-                  {clientes.map((cliente) => (
-                    <Picker.Item 
-                      key={cliente._id} 
-                      label={cliente.nome} 
-                      value={cliente._id} 
-                    />
-                  ))}
-                </Picker>
+              {/* Seleção de Cliente */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Cliente (opcional):</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={selectedCliente}
+                    onValueChange={(itemValue) => setSelectedCliente(itemValue)}
+                    style={styles.picker}
+                    testID="picker-cliente"
+                  >
+                    <Picker.Item label="Cliente avulso" value="" />
+                    {clientes.map((cliente) => (
+                      <Picker.Item 
+                        key={cliente._id} 
+                        label={cliente.nome} 
+                        value={cliente._id} 
+                      />
+                    ))}
+                  </Picker>
+                </View>
               </View>
-            </View>
 
-            {/* Valor Total Estimado */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Valor Total Estimado:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0.00"
-                value={valorTotalEstimado}
-                onChangeText={setValorTotalEstimado}
-                keyboardType="numeric"
-              />
-            </View>
+              {/* Nome da Comanda */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Nome da Comanda: *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Mesa 5 - João"
+                  value={nomeComanda}
+                  onChangeText={setNomeComanda}
+                />
+              </View>
 
-            {/* Observações */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Observações:</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Ex: Cliente preferencial, desconto especial..."
-                value={observacoes}
-                onChangeText={setObservacoes}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </ScrollView>
+              {/* Valor Total Estimado */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Valor Total Estimado:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0.00"
+                  value={valorTotalEstimado}
+                  onChangeText={setValorTotalEstimado}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Observações */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Observações:</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Ex: Cliente preferencial, desconto especial..."
+                  value={observacoes}
+                  onChangeText={setObservacoes}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </ScrollView>
+          )}
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={[styles.button, styles.buttonCancel]} onPress={onClose}>
@@ -203,7 +335,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      )}
     </Modal>
   );
 }
@@ -217,10 +349,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '95%',
-    maxHeight: '90%',
+    height: '90%',
     backgroundColor: 'white',
     borderRadius: 15,
     padding: 20,
+    overflow: Platform.OS === 'ios' ? 'visible' : 'hidden',
+    zIndex: 1000,
   },
   modalTitle: {
     fontSize: 22,
@@ -259,10 +393,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     backgroundColor: '#f9f9f9',
-    overflow: 'hidden',
+    paddingVertical: 4,
   },
   picker: {
-    height: 45,
+    height: Platform.OS === 'ios' ? 200 : 52,
     backgroundColor: '#f9f9f9',
   },
   buttonContainer: {

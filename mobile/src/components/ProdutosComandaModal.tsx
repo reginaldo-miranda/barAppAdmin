@@ -415,53 +415,54 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
           </View>
 
           {/* Body */}
-          <ScrollView style={styles.modalBody}>
-            {/* Filtros */}
-            <SearchAndFilter
-              searchText={searchText}
-              onSearchChange={handleSearchChange}
-              selectedFilter={selectedCategory}
-              filters={categories}
-              onFilterChange={handleFilterChange}
-              searchPlaceholder="Buscar produtos..."
-            />
-
-            {/* Controle de Quantidade */}
-            <View style={styles.quantidadeControl}>
-              <Text style={styles.quantidadeLabel}>Qtd:</Text>
-              <TextInput
-                style={styles.quantidadeInput}
-                value={quantidade.toString()}
-                onChangeText={(text) => setQuantidade(parseInt(text) || 1)}
-                keyboardType="numeric"
-              />
+          {/* Substituído ScrollView + FlatList aninhados por FlatList com ListHeaderComponent para evitar nesting */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Carregando produtos...</Text>
             </View>
+          ) : (
+            <FlatList
+              style={styles.modalBody}
+              data={filteredProducts}
+              renderItem={renderProduto}
+              keyExtractor={(item) => item._id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.produtosList}
+              ListHeaderComponent={(
+                <>
+                  <SearchAndFilter
+                    searchText={searchText}
+                    onSearchChange={handleSearchChange}
+                    selectedFilter={selectedCategory}
+                    filters={categories}
+                    onFilterChange={handleFilterChange}
+                    searchPlaceholder="Buscar produtos..."
+                  />
 
-            {/* Lista de Produtos */}
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Carregando produtos...</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={filteredProducts}
-                renderItem={renderProduto}
-                keyExtractor={(item) => item._id}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.produtosList}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>
-                      {searchText || selectedCategory 
-                        ? 'Nenhum produto encontrado com os filtros aplicados'
-                        : 'Nenhum produto disponível'
-                      }
-                    </Text>
+                  {/* Controle de Quantidade */}
+                  <View style={styles.quantidadeControl}>
+                    <Text style={styles.quantidadeLabel}>Qtd:</Text>
+                    <TextInput
+                      style={styles.quantidadeInput}
+                      value={quantidade.toString()}
+                      onChangeText={(text) => setQuantidade(parseInt(text) || 1)}
+                      keyboardType="numeric"
+                    />
                   </View>
-                }
-              />
-            )}
-          </ScrollView>
+                </>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    {searchText || selectedCategory 
+                      ? 'Nenhum produto encontrado com os filtros aplicados'
+                      : 'Nenhum produto disponível'
+                    }
+                  </Text>
+                </View>
+              }
+            />
+          )}
         </View>
       </View>
 

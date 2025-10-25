@@ -19,7 +19,7 @@ gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barAppAdmin && .
 osascript -e 'tell app "Terminal" to do script "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-api.sh"' 2>/dev/null || \
 echo "⚠️  Abra um novo terminal e execute: ./start-api.sh"
 
-sleep 3
+sleep 5
 
 echo "2️⃣ Iniciando Mobile App..."
 gnome-terminal -- bash -c "cd /Users/reginaldomiranda/Documents/barAppAdmin && ./start-mobile.sh; exec bash" 2>/dev/null || \

@@ -75,9 +75,35 @@ export default function ConfiguracoesScreen() {
     }
   };
 
+  // Helpers para evitar URLs locais e facilitar preenchimento
+  const isLocalUrl = (url: string | undefined): boolean => {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+};
+
+const getEnvApiUrl = (): string | undefined => {
+  try {
+    // @ts-ignore
+    return typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
   const handleSaveApi = async () => {
     if (!apiUrl || !/^https?:\/\//i.test(apiUrl)) {
       Alert.alert('Configuração da API', 'Informe uma URL válida (http/https).');
+      return;
+    }
+    // Evita salvar localhost/127.0.0.1
+    if (isLocalUrl(apiUrl)) {
+      Alert.alert('Configuração da API', 'URL local (localhost/127.0.0.1) não funciona fora do servidor. Informe a URL pública ou IP acessível na rede.');
       return;
     }
     setSavingApi(true);
@@ -91,6 +117,40 @@ export default function ConfiguracoesScreen() {
     } finally {
       setSavingApi(false);
     }
+  };
+
+  const handleFillAuto = () => {
+    const envUrl = getEnvApiUrl();
+    const candidate = envUrl || API_URL;
+    if (!candidate || isLocalUrl(candidate)) {
+      Alert.alert('Configuração da API', 'Detecção automática retornou endereço local (localhost/127.0.0.1). Informe manualmente a URL pública (ex: https://small-trees-rescue.loca.lt/api) ou o IP/DNS acessível da rede.');
+      return;
+    }
+    setApiUrl(candidate);
+  };
+
+  const handleClearApi = async () => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.API_BASE_URL);
+      const envUrl = getEnvApiUrl();
+      setApiUrl(envUrl || '');
+      Alert.alert('Configuração da API', 'URL salva removida. Defina novamente ou use ENV.');
+    } catch (e) {
+      Alert.alert('Configuração da API', 'Falha ao limpar URL.');
+    }
+  };
+
+  const handleUseEnv = () => {
+    const envUrl = getEnvApiUrl();
+    if (!envUrl) {
+      Alert.alert('Configuração da API', 'Nenhuma EXPO_PUBLIC_API_URL disponível. Informe manualmente.');
+      return;
+    }
+    if (isLocalUrl(envUrl)) {
+      Alert.alert('Configuração da API', 'ENV aponta para localhost/127.0.0.1, isso não funciona fora da máquina do servidor.');
+      return;
+    }
+    setApiUrl(envUrl);
   };
 
   const handleTestConnection = async () => {
@@ -202,11 +262,14 @@ export default function ConfiguracoesScreen() {
             keyboardType={Platform.OS === 'ios' ? 'url' : 'default'}
           />
           <View style={[styles.row, { marginTop: 10 }]}> 
-            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => setApiUrl(API_URL)} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleFillAuto} activeOpacity={0.8}>
               <Ionicons name="flash" size={18} color="#2196F3" />
               <Text style={[styles.buttonText, { color: '#2196F3' }]}> Preencher automaticamente</Text>
             </TouchableOpacity>
           </View>
+          <Text style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
+            Detectado: {API_URL || '(sem detecção)'}
+          </Text>
         </View>
 
         <View style={styles.formGroup}>
@@ -240,6 +303,17 @@ export default function ConfiguracoesScreen() {
                 <Text style={styles.primaryButtonText}> Salvar API</Text>
               </>
             )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.row, { marginTop: 10 }]}> 
+          <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleClearApi} activeOpacity={0.8}>
+            <Ionicons name="trash" size={18} color="#b71c1c" />
+            <Text style={[styles.buttonText, { color: '#b71c1c' }]}> Limpar URL da API</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleUseEnv} activeOpacity={0.8}>
+            <Ionicons name="globe-outline" size={18} color="#2196F3" />
+            <Text style={[styles.buttonText, { color: '#2196F3' }]}> Usar ENV</Text>
           </TouchableOpacity>
         </View>
 

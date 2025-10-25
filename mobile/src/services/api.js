@@ -4,35 +4,67 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getSecureItem, STORAGE_KEYS } from './storage';
 
+// Hosts locais que devem ser evitados em produção/dispositivos móveis
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
+
+const getEnvBaseUrl = () => {
+  try {
+    return typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// Helper para detectar URLs locais inválidas em dispositivos
+function isLocalUrl(url) {
+  try {
+    const u = new URL(String(url));
+    return LOCAL_HOSTNAMES.has(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 // Resolve dinamicamente a URL base da API
 function resolveApiBaseUrl() {
   const DEFAULT_PORT = 4000;
 
+  // Prioridade absoluta para variável de ambiente, se existir
+  const ENV_URL = getEnvBaseUrl();
+  if (ENV_URL) return ENV_URL;
+
   // Ambiente Web
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     const hostname = window.location.hostname || 'localhost';
+    // Sempre apontar para a API do backend na porta 4000, mesmo em localhost
     return `http://${hostname}:${DEFAULT_PORT}/api`;
   }
 
-  // Expo Go / Native
+  // Expo Go / Native: múltiplos fallbacks
   const expoHost = Constants?.expoGo?.developer?.host;
-  if (expoHost) {
-    const hostPart = expoHost.split(':')[0];
-    return `http://${hostPart}:${DEFAULT_PORT}/api`;
+  const manifestHost = Constants?.manifest?.debuggerHost;
+  const configHostUri = Constants?.expoConfig?.hostUri;
+  const hostCandidates = [expoHost, manifestHost, configHostUri].filter(Boolean);
+
+  for (const h of hostCandidates) {
+    const hostPart = String(h).split(':')[0];
+    if (hostPart && !LOCAL_HOSTNAMES.has(hostPart)) {
+      return `http://${hostPart}:${DEFAULT_PORT}/api`;
+    }
   }
 
-  // Fallback
-  return `http://localhost:${DEFAULT_PORT}/api`;
+  // Fallback final: manter vazio para evitar localhost/127.0.0.1
+  return '';
 }
 
 // Primeiro: variável de ambiente pública
-const ENV_BASE_URL = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
+const ENV_BASE_URL = getEnvBaseUrl();
 
 // Segundo: override salvo em storage
 let initialBaseUrl = ENV_BASE_URL || resolveApiBaseUrl();
 
 const api = axios.create({
-  baseURL: initialBaseUrl,
+  baseURL: initialBaseUrl || '',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -44,7 +76,14 @@ api.interceptors.request.use(
       // Override de baseURL via AsyncStorage (opcional)
       const storedBaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_BASE_URL);
       if (storedBaseUrl) {
-        config.baseURL = storedBaseUrl;
+        if (isLocalUrl(storedBaseUrl)) {
+          // Remove override inválido para evitar regressão a localhost/127.0.0.1
+          await AsyncStorage.removeItem(STORAGE_KEYS.API_BASE_URL);
+        } else {
+          config.baseURL = storedBaseUrl;
+        }
+      } else if (ENV_BASE_URL) {
+        config.baseURL = ENV_BASE_URL;
       }
 
       const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -64,15 +103,43 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Inicialização assíncrona para aplicar override salvo assim que o app inicia
+(async () => {
+  try {
+    const storedBaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_BASE_URL);
+    if (storedBaseUrl) {
+      if (isLocalUrl(storedBaseUrl)) {
+        // Limpa override local inválido e aplica ENV se disponível
+        await AsyncStorage.removeItem(STORAGE_KEYS.API_BASE_URL);
+        if (ENV_BASE_URL) {
+          initialBaseUrl = ENV_BASE_URL;
+          api.defaults.baseURL = ENV_BASE_URL;
+        }
+      } else {
+        initialBaseUrl = storedBaseUrl;
+        api.defaults.baseURL = storedBaseUrl;
+      }
+    } else if (ENV_BASE_URL) {
+      initialBaseUrl = ENV_BASE_URL;
+      api.defaults.baseURL = ENV_BASE_URL;
+    }
+  } catch {
+    // silencioso
+  }
+})();
+
 // Helper: persistir override no storage (para ajustes via tela de Configurações)
 export async function setApiBaseUrl(url) {
   await AsyncStorage.setItem(STORAGE_KEYS.API_BASE_URL, url);
+  initialBaseUrl = url;
+  api.defaults.baseURL = url;
 }
 
 // Adicionado: função de teste de conexão da API usada pela tela de Configurações
 export async function testApiConnection(baseUrl, apiKey) {
   try {
-    const effectiveBase = (baseUrl || initialBaseUrl || API_URL || '').replace(/\/$/, '');
+    const baseCandidate = baseUrl || ENV_BASE_URL || initialBaseUrl || '';
+    const effectiveBase = String(baseCandidate).replace(/\/$/, '');
     const url = `${effectiveBase}/tipo/list`;
     const res = await axios.get(url, {
       timeout: 7000,

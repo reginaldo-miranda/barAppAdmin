@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { saleService, mesaService } from '../../src/services/api';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+import { events } from '../../src/utils/eventBus'
 
 export default function HomeScreen() {
   const authContext = useAuth() as any;
@@ -96,7 +97,11 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadStats();
-  }, []);
+    const off1 = events.on('mesas:refresh', loadStats);
+    const off2 = events.on('comandas:refresh', loadStats);
+    const off3 = events.on('caixa:refresh', loadStats);
+    return () => { off1(); off2(); off3(); };
+  }, [loadStats]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -165,7 +170,10 @@ export default function HomeScreen() {
             <Ionicons name="settings" size={22} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-            <Ionicons name="log-out" size={22} color="#fff" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="log-out" size={22} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Sair</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>

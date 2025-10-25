@@ -120,22 +120,30 @@ export const AuthProvider = ({ children }) => {
       console.log('🔐 AuthContext: Login falhou - sem token na resposta');
       return { success: false, message: 'Resposta inválida do servidor' };
     } catch (error) {
+      const safeMsg = typeof error === 'object' && error !== null
+        ? (error.message ?? 'Erro desconhecido')
+        : String(error ?? 'Erro desconhecido');
+      const safeResp = (error && typeof error === 'object' && error.response) ? error.response : undefined;
+      const safeStatus = safeResp?.status ?? 0;
+      const serverMessage =
+        safeResp?.data?.message ??
+        safeResp?.data?.error ??
+        safeMsg;
+
       console.error('🔐 AuthContext: Erro detalhado no login:', error);
-      console.error('🔐 AuthContext: Erro response:', error.response);
-      console.error('🔐 AuthContext: Erro message:', error.message);
-      
+      console.error('🔐 AuthContext: Erro status:', safeStatus);
+      console.error('🔐 AuthContext: Mensagem derivada:', serverMessage);
+
       let errorMessage = 'Erro ao conectar com o servidor';
-      
-      if (error.response) {
-        errorMessage = error.response.data?.message || `Erro ${error.response.status}`;
-      } else if (error.request) {
+      if (safeResp) {
+        errorMessage = serverMessage || `Erro ${safeStatus}`;
+      } else if (error?.request) {
         errorMessage = 'Não foi possível conectar com o servidor';
+      } else {
+        errorMessage = serverMessage;
       }
-      
-      return { 
-        success: false, 
-        message: errorMessage
-      };
+
+      return { success: false, message: errorMessage };
     } finally {
       setLoading(false);
     }

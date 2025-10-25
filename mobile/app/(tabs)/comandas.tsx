@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal, Platform } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CriarComandaModal from '../../src/components/CriarComandaModal';
 import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
@@ -102,12 +102,36 @@ export default function ComandasAbertasScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadComandas();
-    }, [])
+      const off = events.on('comandas:refresh', () => {
+        loadComandas();
+      });
+      return () => off();
+    }, [loadComandas])
   );
 
+  useFocusEffect(useCallback(() => {
+    const intervalId = setInterval(() => {
+      loadComandas();
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, [loadComandas]));
+
   const handleOpenModal = () => {
-    setModalVisible(true);
+    if (Platform.OS === 'ios') {
+      console.log('✅ iOS: Toque capturado: abrindo modal Nova Comanda com Alert');
+      Alert.alert('Abrindo', 'Nova Comanda', [
+        {
+          text: 'OK',
+          onPress: () => {
+            console.log('👉 OK do Alert pressionado, abrindo modal');
+            setModalVisible(true);
+          },
+        },
+      ]);
+    } else {
+      console.log('✅ Web/Android: abrindo modal Nova Comanda imediatamente');
+      setModalVisible(true);
+    }
   };
 
   const handleCloseModal = () => {
@@ -258,7 +282,8 @@ export default function ComandasAbertasScreen() {
       console.log('Resposta da criação:', response.data);
       Alert.alert('Sucesso', 'Comanda criada com sucesso!');
       handleCloseModal();
-      loadComandas(); // Recarrega as comandas
+      await loadComandas(); // Recarrega as comandas
+      events.emit('comandas:refresh');
     } catch (error: any) {
       console.error('Erro detalhado ao criar comanda:', error);
       console.error('Response error:', error.response?.data);
@@ -309,7 +334,12 @@ export default function ComandasAbertasScreen() {
       />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Comandas</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => router.push('/')} accessibilityLabel="Voltar para Home" style={{ marginRight: 12 }}>
+            <Ionicons name="arrow-back" size={24} color="#2196F3" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Comandas</Text>
+        </View>
         <TouchableOpacity style={styles.button} onPress={handleOpenModal}>
           <Text style={styles.buttonText}>Nova Comanda</Text>
         </TouchableOpacity>
@@ -517,6 +547,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    zIndex: 10,
+    elevation: 4,
   },
   title: {
     fontSize: 24,

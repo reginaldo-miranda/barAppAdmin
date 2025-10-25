@@ -9,6 +9,10 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-echo "🔧 Iniciando Expo..."
-npm start
+# Configurar URL pública da API (LocalTunnel fixo)
+export EXPO_PUBLIC_API_URL="https://small-trees-rescue.loca.lt/api"
+echo "🔗 EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}"
+
+echo "🔧 Iniciando Expo em modo túnel na porta 8086..."
+npx expo start --tunnel --port 8086
 

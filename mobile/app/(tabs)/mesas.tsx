@@ -429,19 +429,13 @@ export default function MesasScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await mesaService.update(mesa._id, {
-                status: 'livre',
-                nomeResponsavel: undefined,
-                funcionarioResponsavel: undefined,
-                observacoes: undefined
-              });
-              
-              Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
+              await mesaService.fechar(mesa._id);
+              Alert.alert('Sucesso', 'Mesa fechada e liberada!');
               await loadMesas();
               events.emit('caixa:refresh');
             } catch (error: any) {
               console.error('Erro ao fechar mesa:', error);
-              Alert.alert('Erro', 'Não foi possível fechar a mesa');
+              Alert.alert('Erro', error.response?.data?.message || 'Não foi possível fechar a mesa');
             }
           }
         }
@@ -607,6 +601,13 @@ export default function MesasScreen() {
         console.log('🌐 Finalizando venda via API...');
         const response = await saleService.finalize(fecharSaleId!, data);
         console.log('✅ Venda finalizada:', response.data);
+        // Garantir liberação da mesa no backend
+        try {
+          await mesaService.fechar(fecharMesaSelecionada._id);
+          console.log('✅ Mesa liberada via API fechar');
+        } catch (e) {
+          console.warn('⚠️ Falha ao chamar mesaService.fechar, a venda foi finalizada mas a mesa pode já ter sido liberada pelo backend:', e?.response?.data || e?.message);
+        }
         Alert.alert('Sucesso', 'Venda finalizada e mesa liberada!');
       } else {
         console.log('ℹ️ Sem venda aberta com itens. Não é possível finalizar.');

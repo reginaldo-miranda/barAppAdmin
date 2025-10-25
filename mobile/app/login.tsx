@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const { login, loading, clearAllStorage } = useAuth();
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const handleLogin = async () => {
     console.log('🚀 handleLogin chamado com:', { email, password: '***' });
@@ -29,6 +30,7 @@ export default function LoginScreen() {
     }
 
     try {
+      setLoginLoading(true);
       console.log('🚀 Chamando função login do contexto...');
       const result = await login({ email, password });
       console.log('🚀 Resultado do login:', result);
@@ -43,6 +45,8 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('🚀 Erro inesperado no login:', error);
       Alert.alert('Erro de Login', 'Erro inesperado ao fazer login');
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -100,11 +104,11 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+            style={[styles.loginButton, loginLoading && styles.loginButtonDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loginLoading}
           >
-            {loading ? (
+            {loginLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.loginButtonText}>Entrar</Text>
