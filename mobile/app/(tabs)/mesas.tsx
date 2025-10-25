@@ -22,6 +22,7 @@ import { mesaService, saleService, employeeService } from '../../src/services/ap
   import ScreenIdentifier from '../../src/components/ScreenIdentifier';
   import { API_URL } from '../../src/services/api';
   import { events } from '../../src/utils/eventBus';
+import { useFocusEffect } from '@react-navigation/native';
 
 interface Funcionario {
   _id: string;
@@ -118,7 +119,29 @@ export default function MesasScreen() {
     loadFuncionarios();
   }, []);
 
-  const loadMesas = async () => {
+  // Revalidar quando a tela ganhar foco e quando eventos de atualização ocorrerem
+  useFocusEffect(
+    useCallback(() => {
+      const off = events.on('mesas:refresh', () => {
+        console.log('🔁 Evento mesas:refresh recebido, recarregando mesas');
+        loadMesas();
+      });
+      return () => off();
+    }, [loadMesas])
+  );
+
+  // Polling leve para garantir atualização mesmo sem interação
+  useFocusEffect(
+    useCallback(() => {
+      const intervalId = setInterval(() => {
+        console.log('⏱️ Polling de mesas a cada 5s');
+        loadMesas();
+      }, 5000);
+      return () => clearInterval(intervalId);
+    }, [loadMesas])
+  );
+
+  async function loadMesas() {
     try {
       setLoading(true);
       const response = await mesaService.list();
@@ -151,16 +174,16 @@ export default function MesasScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const loadFuncionarios = async () => {
+  async function loadFuncionarios() {
     try {
       const response = await employeeService.getAll();
       setFuncionarios(response.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar funcionários:', error);
     }
-  };
+  }
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -429,13 +452,19 @@ export default function MesasScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Atualização otimista: marcar como livre imediatamente
+              setMesas(prev => prev.map(m => m._id === mesa._id ? { ...m, status: 'livre', nomeResponsavel: undefined, funcionarioResponsavel: undefined } : m));
+
               await mesaService.fechar(mesa._id);
               Alert.alert('Sucesso', 'Mesa fechada e liberada!');
               await loadMesas();
               events.emit('caixa:refresh');
+              events.emit('mesas:refresh');
             } catch (error: any) {
               console.error('Erro ao fechar mesa:', error);
               Alert.alert('Erro', error.response?.data?.message || 'Não foi possível fechar a mesa');
+              // Em caso de erro, revalida estado
+              await loadMesas();
             }
           }
         }
@@ -460,6 +489,9 @@ export default function MesasScreen() {
           onPress: async () => {
             console.log('🔄 Usuário confirmou liberação da mesa');
             try {
+              // Atualização otimista: marcar como livre imediatamente
+              setMesas(prev => prev.map(m => m._id === mesa._id ? { ...m, status: 'livre', nomeResponsavel: undefined, funcionarioResponsavel: undefined } : m));
+
               console.log('📡 Chamando mesaService.update...');
               const response = await mesaService.update(mesa._id, {
                 status: 'livre',
@@ -470,14 +502,17 @@ export default function MesasScreen() {
               console.log('✅ Mesa atualizada com sucesso:', response);
               
               Alert.alert('Sucesso', 'Mesa fechada com sucesso!');
-            console.log('🔄 Recarregando lista de mesas...');
-            await loadMesas();
-            console.log('✅ Lista de mesas recarregada!');
-            events.emit('caixa:refresh');
+              console.log('🔄 Recarregando lista de mesas...');
+              await loadMesas();
+              console.log('✅ Lista de mesas recarregada!');
+              events.emit('caixa:refresh');
+              events.emit('mesas:refresh');
             } catch (error: any) {
               console.error('❌ ERRO ao liberar mesa:', error);
               console.error('Detalhes do erro:', error.response?.data || error.message);
               Alert.alert('Erro', `Não foi possível liberar a mesa: ${error.response?.data?.message || error.message}`);
+              // Em caso de erro, revalida estado
+              await loadMesas();
             }
           }
         }
@@ -605,8 +640,8 @@ export default function MesasScreen() {
         try {
           await mesaService.fechar(fecharMesaSelecionada._id);
           console.log('✅ Mesa liberada via API fechar');
-        } catch (e) {
-          console.warn('⚠️ Falha ao chamar mesaService.fechar, a venda foi finalizada mas a mesa pode já ter sido liberada pelo backend:', e?.response?.data || e?.message);
+        } catch (error: any) {
+          console.warn('⚠️ Falha ao chamar mesaService.fechar, a venda foi finalizada mas a mesa pode já ter sido liberada pelo backend:', error?.response?.data || error?.message);
         }
         Alert.alert('Sucesso', 'Venda finalizada e mesa liberada!');
       } else {
@@ -625,6 +660,7 @@ export default function MesasScreen() {
       await loadMesas();
       console.log('✅ Lista de mesas recarregada');
       events.emit('caixa:refresh');
+      events.emit('mesas:refresh');
     } catch (error: any) {
       console.error('❌ ERRO ao fechar mesa:', {
         message: error?.message,

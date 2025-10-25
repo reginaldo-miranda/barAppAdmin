@@ -24,6 +24,13 @@ export default function TabLayout() {
     return null;
   }
 
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      // Redireciona para a tela de login sempre que a autenticação ficar falsa
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated]);
+
   return (
     <Tabs
       screenOptions={{
