@@ -37,6 +37,7 @@ export default function ConfiguracoesScreen() {
   const [testingWifi, setTestingWifi] = useState(false);
   const [wifiTestStatus, setWifiTestStatus] = useState<null | { ok: boolean; message: string }>(null);
   const [wifiRealCapable, setWifiRealCapable] = useState<boolean | null>(null);
+  const [apiTimeoutMs, setApiTimeoutMs] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -45,12 +46,13 @@ export default function ConfiguracoesScreen() {
         const storedKey = await getSecureItem(STORAGE_KEYS.API_AUTH_KEY);
         const storedSsid = await getSecureItem(STORAGE_KEYS.WIFI_SSID);
         const storedPwd = await getSecureItem(STORAGE_KEYS.WIFI_PASSWORD);
+        const savedTimeoutStr = await AsyncStorage.getItem(STORAGE_KEYS.API_TIMEOUT_MS);
         if (storedUrl) setApiUrl(storedUrl);
-        // Fallback automático para API_URL detectada se não houver valor salvo
         if (!storedUrl) setApiUrl(API_URL);
         if (storedKey) setApiKey(storedKey);
         if (storedSsid) setSelectedSSID(storedSsid);
         if (storedPwd) setWifiPassword(storedPwd);
+        if (savedTimeoutStr) setApiTimeoutMs(savedTimeoutStr);
       } catch (e) {
         console.warn('Falha ao carregar configurações:', e);
       }
@@ -151,6 +153,21 @@ const getEnvApiUrl = (): string | undefined => {
       return;
     }
     setApiUrl(envUrl);
+  };
+
+  // Salvar Timeout da API (ms)
+  const handleSaveApiTimeout = async () => {
+    const val = Number(apiTimeoutMs);
+    if (!Number.isFinite(val) || val < 3000 || val > 60000) {
+      Alert.alert('Timeout da API', 'Informe um valor entre 3000 e 60000 ms.');
+      return;
+    }
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.API_TIMEOUT_MS, String(val));
+      Alert.alert('Timeout da API', 'Timeout salvo com sucesso. As próximas requisições usarão este valor.');
+    } catch (e) {
+      Alert.alert('Timeout da API', 'Falha ao salvar o timeout.');
+    }
   };
 
   const handleTestConnection = async () => {

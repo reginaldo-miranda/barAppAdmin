@@ -66,10 +66,18 @@ export default function ProductSelectorModal({
     setLoading(true);
     try {
       const response = await productService.getAll();
-      const activeProducts = response.data.filter((product: Product) => 
+      const activeProducts = response.data.filter((product: any) => 
         product.ativo && product.disponivel
       );
-      setProducts(activeProducts);
+      // Normalizar campos com fallbacks
+      const normalized = activeProducts.map((p: any) => ({
+        ...p,
+        nome: p?.nome ?? p?.nomeProduto ?? p?.produto?.nome ?? p?.name ?? 'Produto',
+        descricao: p?.descricao ?? p?.productDescription ?? p?.desc ?? '',
+        categoria: p?.categoria ?? p?.grupo ?? p?.category ?? 'todos',
+        precoVenda: Number(p?.precoVenda ?? p?.preco ?? 0),
+      }));
+      setProducts(normalized);
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
       Alert.alert('Erro', 'Não foi possível carregar os produtos');
@@ -78,10 +86,13 @@ export default function ProductSelectorModal({
     }
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.nome.toLowerCase().includes(searchText.toLowerCase()) ||
-                         product.descricao.toLowerCase().includes(searchText.toLowerCase());
-    const matchesCategory = selectedCategory === 'todos' || product.categoria === selectedCategory;
+  const filteredProducts = products.filter((product: any) => {
+    const search = String(searchText || '').toLowerCase().trim();
+    const nomeLower = String(product?.nome ?? '').toLowerCase();
+    const descLower = String(product?.descricao ?? '').toLowerCase();
+    const matchesSearch = !search || nomeLower.includes(search) || descLower.includes(search);
+    const catVal = product?.categoria ?? 'todos';
+    const matchesCategory = selectedCategory === 'todos' || String(catVal) === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -115,7 +126,7 @@ export default function ProductSelectorModal({
     }
   };
 
-  const renderProduct = ({ item }: { item: Product }) => (
+  const renderProduct = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[
         styles.productCard,
@@ -124,12 +135,14 @@ export default function ProductSelectorModal({
       onPress={() => handleProductPress(item)}
     >
       <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.nome}</Text>
-        <Text style={styles.productDescription} numberOfLines={2}>
-          {item.descricao}
-        </Text>
+        <Text style={styles.productName} numberOfLines={1}>{String(item?.nome ?? 'Produto')}</Text>
+        {Boolean(item?.descricao) && (
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {String(item?.descricao)}
+          </Text>
+        )}
         <Text style={styles.productPrice}>
-          R$ {item.precoVenda.toFixed(2)}
+          R$ {Number(item?.precoVenda || 0).toFixed(2)}
         </Text>
       </View>
       {selectedProduct?._id === item._id && (

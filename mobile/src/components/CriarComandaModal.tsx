@@ -11,15 +11,10 @@ import {
   Platform,
 } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
-import { Ionicons } from '@expo/vector-icons'
-import { employeeService, customerService } from '../services/api'
+// import { Ionicons } from '@expo/vector-icons'
+import { employeeService } from '../services/api'
 
 interface Funcionario {
-  _id: string;
-  nome: string;
-}
-
-interface Cliente {
   _id: string;
   nome: string;
 }
@@ -35,15 +30,15 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
   const [observacoes, setObservacoes] = useState('');
   const [valorTotalEstimado, setValorTotalEstimado] = useState('0');
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  // Removed clientes state
   const [selectedFuncionario, setSelectedFuncionario] = useState('');
-  const [selectedCliente, setSelectedCliente] = useState('');
+  // Removed selectedCliente state
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setLoading(true);
-      Promise.all([loadFuncionarios(), loadClientes()])
+      loadFuncionarios()
         .finally(() => setLoading(false));
     }
   }, [visible]);
@@ -58,23 +53,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
     }
   };
 
-  const loadClientes = async () => {
-    try {
-      const response = await customerService.getAll();
-      const clientesAtivos = response.data.filter((cliente: any) => cliente.ativo);
-      // Adicionar opção de cliente avulso
-      setClientes([
-        { _id: 'avulso', nome: 'Cliente avulso' },
-        ...clientesAtivos
-      ]);
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
-      // Em caso de erro, usar apenas cliente avulso
-      setClientes([
-        { _id: 'avulso', nome: 'Cliente avulso' }
-      ]);
-    }
-  };
+  // Cliente removido conforme especificação: função de carregar clientes removida
 
   const handleSubmit = () => {
     const nome = (nomeComanda || '').trim();
@@ -94,7 +73,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
     onSubmit({ 
       nomeComanda: nome,
       funcionario: selectedFuncionario,
-      cliente: selectedCliente || null,
+      // Removed cliente
       valorTotalEstimado: parseFloat(valorTotalEstimado) || 0,
       observacoes: observacoes.trim()
     });
@@ -104,7 +83,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
     setObservacoes('');
     setValorTotalEstimado('0');
     setSelectedFuncionario('');
-    setSelectedCliente('');
+    // Removed setSelectedCliente
   };
 
   return (
@@ -155,27 +134,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
                   </View>
                 </View>
 
-                {/* Seleção de Cliente */}
-                <View style={styles.fieldContainer}>
-                  <Text style={styles.label}>Cliente (opcional):</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectedCliente}
-                      onValueChange={(itemValue) => setSelectedCliente(itemValue)}
-                      style={styles.picker}
-                      testID="picker-cliente"
-                    >
-                      <Picker.Item label="Cliente avulso" value="" />
-                      {clientes.map((cliente) => (
-                        <Picker.Item 
-                          key={cliente._id} 
-                          label={cliente.nome} 
-                          value={cliente._id} 
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                </View>
+                {/* Cliente removido conforme especificação: função de carregar clientes removida */}
 
                 {/* Nome da Comanda */}
                 <View style={styles.fieldContainer}>
@@ -263,27 +222,7 @@ export default function CriarComandaModal({ visible, onClose, onSubmit }: Props)
                 </View>
               </View>
 
-              {/* Seleção de Cliente */}
-              <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Cliente (opcional):</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={selectedCliente}
-                    onValueChange={(itemValue) => setSelectedCliente(itemValue)}
-                    style={styles.picker}
-                    testID="picker-cliente"
-                  >
-                    <Picker.Item label="Cliente avulso" value="" />
-                    {clientes.map((cliente) => (
-                      <Picker.Item 
-                        key={cliente._id} 
-                        label={cliente.nome} 
-                        value={cliente._id} 
-                      />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
+              {/* Cliente removido conforme especificação */}
 
               {/* Nome da Comanda */}
               <View style={styles.fieldContainer}>

@@ -57,7 +57,11 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
       console.log('📦 Carregando produtos...');
       const response = await productService.getAll();
       console.log('📦 Produtos carregados:', response.data?.length || 0);
-      setProducts(response.data || []);
+      const normalized = (response?.data || []).map((p: any) => ({
+        ...p,
+        nome: p?.nome ?? p?.nomeProduto ?? p?.produto?.nome ?? p?.name ?? 'Produto',
+      }));
+      setProducts(normalized as Product[]);
     } catch (error) {
       console.error('❌ Erro ao carregar produtos:', error);
       Alert.alert('Erro', 'Não foi possível carregar os produtos');
@@ -156,7 +160,9 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
   const renderProductRow = ({ item }: { item: Product }) => (
     <View style={styles.productRow}>
       <View style={styles.productLeftSection}>
-        <Text style={styles.productName}>{item.nome}</Text>
+        <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
+          {(item as any)?.nome ?? (item as any)?.nomeProduto ?? (item as any)?.produto?.nome ?? 'Produto'}
+        </Text>
         {item.descricao && (
           <Text style={styles.productDescription}>{item.descricao}</Text>
         )}

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndi
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CriarComandaModal from '../../src/components/CriarComandaModal';
-import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
+// import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
 import SearchAndFilter from '../../src/components/SearchAndFilter';
 import { comandaService, employeeService, saleService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -13,8 +13,9 @@ import { events } from '../../src/utils/eventBus';
 
 export default function ComandasAbertasScreen() {
   const [modalVisible, setModalVisible] = useState(false);
-  const [produtosModalVisible, setProdutosModalVisible] = useState(false);
-  const [comandaSelecionada, setComandaSelecionada] = useState<any>(null);
+  // Estados de modal de produtos removidos após migração para SaleScreen
+  // const [produtosModalVisible, setProdutosModalVisible] = useState(false);
+  // const [comandaSelecionada, setComandaSelecionada] = useState<any>(null);
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [filteredComandas, setFilteredComandas] = useState<Comanda[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,31 +140,35 @@ export default function ComandasAbertasScreen() {
   };
 
   const handleOpenProdutosModal = (comanda: any) => {
-    setComandaSelecionada(comanda);
-    setProdutosModalVisible(true);
+    // Navegar para a SaleScreen usando o fluxo já consolidado das Mesas
+    router.push({
+      pathname: '/sale',
+      params: { tipo: 'comanda', vendaId: comanda._id }
+    });
   };
 
-  const handleCloseProdutosModal = () => {
-    setProdutosModalVisible(false);
-    setComandaSelecionada(null);
-  };
+  // Fluxo antigo de modal de produtos substituído por navegação para /sale
+  // const handleCloseProdutosModal = () => {
+  //   setProdutosModalVisible(false);
+  //   setComandaSelecionada(null);
+  // };
 
-  const handleUpdateComanda = async () => {
-    // Recarrega as comandas após adicionar/remover produtos
-    await loadComandas();
-    
-    // Se há uma comanda selecionada no modal, atualiza seus dados também
-    if (comandaSelecionada) {
-      try {
-        const response = await comandaService.getById(comandaSelecionada._id);
-        setComandaSelecionada(response.data);
-      } catch (error: any) {
-        console.error('Erro ao atualizar comanda selecionada:', error);
-      }
-    }
-  };
+  // const handleUpdateComanda = async () => {
+  //   // Recarrega as comandas após adicionar/remover produtos
+  //   await loadComandas();
+  //   
+  //   // Se há uma comanda selecionada no modal, atualiza seus dados também
+  //   if (comandaSelecionada) {
+  //     try {
+  //       const response = await comandaService.getById(comandaSelecionada._id);
+  //       setComandaSelecionada(response.data);
+  //     } catch (error: any) {
+  //       console.error('Erro ao atualizar comanda selecionada:', error);
+  //     }
+  //   }
+  // };
 
-  // Função para abrir modal de fechamento de comanda (idêntica às mesas)
+  // Função para abrir modal de fechamento de comanda (idêntico às mesas)
   const fecharModalFecharComanda = async (comanda: any) => {
     try {
       setFecharComandaSelecionada(comanda);
@@ -282,6 +287,8 @@ export default function ComandasAbertasScreen() {
       console.log('Resposta da criação:', response.data);
       Alert.alert('Sucesso', 'Comanda criada com sucesso!');
       handleCloseModal();
+      // Redireciona imediatamente para a SaleScreen desta comanda
+      router.push({ pathname: '/sale', params: { tipo: 'comanda', vendaId: response.data._id } });
       await loadComandas(); // Recarrega as comandas
       events.emit('comandas:refresh');
     } catch (error: any) {
@@ -351,12 +358,7 @@ export default function ComandasAbertasScreen() {
         onSubmit={handleSubmitComanda}
       />
       
-      <ProdutosComandaModal
-        visible={produtosModalVisible}
-        onClose={handleCloseProdutosModal}
-        comanda={comandaSelecionada}
-        onUpdateComanda={handleUpdateComanda}
-      />
+      {/* ProdutosComandaModal removido: fluxo migrado para SaleScreen (/sale) */}
       
       {loading ? (
         <ActivityIndicator size="large" color="#2196F3" />

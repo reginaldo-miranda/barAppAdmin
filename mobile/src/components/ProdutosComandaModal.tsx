@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -88,6 +88,7 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
   // Novos estados para os modais
   const [itensSelecionadosModalVisible, setItensSelecionadosModalVisible] = useState(false);
   const [fecharComandaModalVisible, setFecharComandaModalVisible] = useState(false);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (visible && comanda) {
@@ -158,7 +159,7 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
     setLoadingItems(prev => new Set(prev).add(produto._id));
     
     const itemData = {
-      produto: produto,
+      produtoId: produto._id,
       quantidade: quantidade || 1
     };
     
@@ -208,45 +209,67 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
   // Função para incrementar quantidade no modal de itens selecionados
   const incrementarQuantidadeItem = async (item: CartItem) => {
     if (!comanda || !item?.produto?._id) {
-      Alert.alert('Erro', 'Dados inválidos');
+      Alert.alert('Erro', 'Comanda não encontrada ou inválida. Atualizando...');
+      try { onUpdateComanda?.(); } catch {}
       return;
     }
 
-    // Criar objeto produto a partir do item da comanda
-    const produtoFromItem: ProdutoExtendido = {
-      _id: item.produto._id,
-      nome: item.nomeProduto,
-      descricao: '',
-      precoVenda: item.precoUnitario,
-      categoria: '',
-      ativo: true,
-      disponivel: true,
-      grupo: ''
-    };
+    const produtoId = item.produto._id;
+    const qtyAtual = item.quantidade || 1;
 
-    await adicionarItem(produtoFromItem);
+    // Adicionar ao loading do item específico
+    setLoadingItems(prev => new Set(prev).add(produtoId));
+
+    try {
+      await comandaService.updateItemQuantity(comanda._id, produtoId, qtyAtual + 1);
+      onUpdateComanda?.();
+    } catch (error) {
+      console.error('Erro ao incrementar quantidade do item:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar o item. Sincronizando comanda...');
+      try { onUpdateComanda?.(); } catch {}
+    } finally {
+      // Remover do loading
+      setLoadingItems(prev => {
+        const ns = new Set(prev);
+        ns.delete(produtoId);
+        return ns;
+      });
+    }
   };
 
   // Função para decrementar quantidade no modal de itens selecionados
   const decrementarQuantidadeItem = async (item: CartItem) => {
     if (!comanda || !item?.produto?._id) {
-      Alert.alert('Erro', 'Dados inválidos');
+      Alert.alert('Erro', 'Comanda não encontrada ou inválida. Atualizando...');
+      try { onUpdateComanda?.(); } catch {}
       return;
     }
 
-    // Criar objeto produto a partir do item da comanda
-    const produtoFromItem: ProdutoExtendido = {
-      _id: item.produto._id,
-      nome: item.nomeProduto,
-      descricao: '',
-      precoVenda: item.precoUnitario,
-      categoria: '',
-      ativo: true,
-      disponivel: true,
-      grupo: ''
-    };
+    const produtoId = item.produto._id;
+    const qtyAtual = item.quantidade || 1;
 
-    await removerItem(produtoFromItem);
+    // Adicionar ao loading do item específico
+    setLoadingItems(prev => new Set(prev).add(produtoId));
+
+    try {
+      if (qtyAtual > 1) {
+        await comandaService.updateItemQuantity(comanda._id, produtoId, qtyAtual - 1);
+      } else {
+        await comandaService.removeItem(comanda._id, produtoId);
+      }
+      onUpdateComanda?.();
+    } catch (error) {
+      console.error('Erro ao atualizar quantidade do item:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar o item. Sincronizando comanda...');
+      try { onUpdateComanda?.(); } catch {}
+    } finally {
+      // Remover do loading
+      setLoadingItems(prev => {
+        const ns = new Set(prev);
+        ns.delete(produtoId);
+        return ns;
+      });
+    }
   };
 
   // Função para fechar comanda
@@ -287,11 +310,16 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
     // Filtro por texto de busca
     if (searchText && searchText.trim() !== '') {
       const searchLower = searchText.toLowerCase().trim();
-      filtered = filtered.filter(product =>
-        product.nome.toLowerCase().includes(searchLower) ||
-        (product.descricao && product.descricao.toLowerCase().includes(searchLower)) ||
-        (product.categoria && product.categoria.toLowerCase().includes(searchLower))
-      );
+      filtered = filtered.filter(product => {
+        const nomePesquisavel = (product?.nome ?? (product as any)?.nomeProduto ?? (product as any)?.produto?.nome ?? (product as any)?.name ?? '').toLowerCase();
+        const descricaoPesquisavel = (product?.descricao ?? '').toLowerCase();
+        const categoriaPesquisavel = (product?.categoria ?? '').toLowerCase();
+        return (
+          nomePesquisavel.includes(searchLower) ||
+          descricaoPesquisavel.includes(searchLower) ||
+          categoriaPesquisavel.includes(searchLower)
+        );
+      });
       console.log('🔍 Após filtro de texto:', filtered.length);
     }
 
@@ -299,60 +327,62 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
     setFilteredProducts(filtered);
   };
 
-  const handleSearchChange = (newSearchText: string) => {
+  const handleSearchChange = useCallback((newSearchText: string) => {
     console.log('🔄 Mudança de busca:', newSearchText);
-    setSearchText(newSearchText);
-  };
+    if (!debounceTimeoutRef.current) {
+      debounceTimeoutRef.current = null;
+    }
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current as any);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      setSearchText(newSearchText);
+    }, 250);
+  }, []);
 
-  const handleFilterChange = (newSelectedFilter: string) => {
+  const handleFilterChange = useCallback((newSelectedFilter: string) => {
     console.log('🔄 Mudança de filtro:', newSelectedFilter);
     setSelectedCategory(newSelectedFilter);
-  };
+  }, []);
 
-  const renderProduto = ({ item: produto }: { item: ProdutoExtendido }) => {
+  const renderProduto = useCallback(({ item: produto }: { item: ProdutoExtendido }) => {
     // Calcular quantidade já adicionada na comanda
     const itemNaComanda = comanda?.itens?.find((item: CartItem) => item.produto._id === produto._id);
     const quantidadeNaComanda = itemNaComanda ? itemNaComanda.quantidade : 0;
     const isLoading = loadingItems.has(produto._id);
-    
+    const nomeExibicao = produto?.nome ?? (produto as any)?.nomeProduto ?? (produto as any)?.produto?.nome ?? (produto as any)?.name ?? 'Produto';
     return (
       <View style={[styles.produtoCard, quantidadeNaComanda > 0 && styles.produtoAdicionado]}>
-        {/* Nome do produto à esquerda */}
-        <View style={styles.produtoInfo}>
-          <Text style={styles.produtoNome}>{produto.nome}</Text>
-        </View>
-        
-        {/* Preço e controles à direita */}
-        <View style={styles.produtoRightSection}>
-          <Text style={styles.produtoPreco}>R$ {produto.precoVenda?.toFixed(2)}</Text>
-          
-          <View style={styles.produtoControles}>
-            <TouchableOpacity 
-              style={[styles.btnControle, (quantidadeNaComanda === 0 || isLoading) && styles.btnControleDisabled]}
-              onPress={() => removerItem(produto)}
-              disabled={quantidadeNaComanda === 0 || isLoading}
-            >
-              <Text style={styles.btnControleText}>-</Text>
-            </TouchableOpacity>
-            
-            <Text style={styles.quantidadeDisplay}>{quantidadeNaComanda}</Text>
-            
-            <TouchableOpacity 
-              style={[styles.btnControle, isLoading && styles.btnControleDisabled]}
-              onPress={() => {
-                console.log('BOTÃO CLICADO! Produto:', produto.nome);
-                Alert.alert('Teste', `Clicou no produto: ${produto.nome}`);
-                adicionarItem(produto);
-              }}
-              disabled={isLoading}
-            >
-              <Text style={styles.btnControleText}>
-                {isLoading ? '...' : `+${quantidade > 1 ? quantidade : ''}`}
-              </Text>
-            </TouchableOpacity>
+        {/* Linha superior: nome à esquerda e preço + controles à direita */}
+        <View style={styles.produtoTopRow}>
+          {/* Nome do produto à esquerda */}
+          <View style={styles.produtoInfo}>
+            <Text style={styles.produtoNome} numberOfLines={1} ellipsizeMode="tail">{nomeExibicao}</Text>
+          </View>
+          {/* Preço e controles à direita */}
+          <View style={styles.produtoRightSection}>
+            <Text style={styles.produtoPreco}>R$ {produto.precoVenda?.toFixed(2)}</Text>
+            <View style={styles.produtoControles}>
+              <TouchableOpacity 
+                style={[styles.btnControle, (quantidadeNaComanda === 0 || isLoading) && styles.btnControleDisabled]}
+                onPress={() => removerItem(produto)}
+                disabled={quantidadeNaComanda === 0 || isLoading}
+              >
+                <Text style={styles.btnControleText}>-</Text>
+              </TouchableOpacity>
+              <Text style={styles.quantidadeDisplay}>{quantidadeNaComanda}</Text>
+              <TouchableOpacity 
+                style={[styles.btnControle, isLoading && styles.btnControleDisabled]}
+                onPress={() => adicionarItem(produto)}
+                disabled={isLoading}
+              >
+                <Text style={styles.btnControleText}>
+                  {isLoading ? '...' : (quantidade > 1 ? `+${quantidade}` : '+')}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-        
         {/* Total em linha separada se houver quantidade */}
         {quantidadeNaComanda > 0 && (
           <View style={styles.produtoTotalContainer}>
@@ -363,7 +393,40 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
         )}
       </View>
     );
-  };
+  }, [comanda?.itens, loadingItems, quantidade]);
+
+  // Renderização de item selecionado memoizada para reduzir re-renders
+  const renderItemSelecionado = useCallback(({ item, index }: { item: CartItem; index: number }) => {
+    const isItemLoading = loadingItems.has(item.produto._id);
+    return (
+      <View key={`${item._id || item.produto._id}-${index}`} style={styles.itemSelecionadoCard}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemNome}>{item.nomeProduto}</Text>
+          <Text style={styles.itemPreco}>R$ {item.precoUnitario?.toFixed(2)}</Text>
+        </View>
+
+        <View style={styles.itemControles}>
+          <TouchableOpacity
+            style={[styles.btnControle, isItemLoading && styles.btnControleDisabled]}
+            onPress={() => decrementarQuantidadeItem(item)}
+            disabled={isItemLoading}
+          >
+            <Text style={styles.btnControleText}>{isItemLoading ? '...' : '-'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.quantidadeDisplay}>{item.quantidade}</Text>
+          <TouchableOpacity
+            style={[styles.btnControle, isItemLoading && styles.btnControleDisabled]}
+            onPress={() => incrementarQuantidadeItem(item)}
+            disabled={isItemLoading}
+          >
+            <Text style={styles.btnControleText}>{isItemLoading ? '...' : '+'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.itemTotal}>R$ {item.subtotal?.toFixed(2)}</Text>
+      </View>
+    );
+  }, [loadingItems]);
 
   if (!comanda) return null;
 
@@ -428,6 +491,11 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
               keyExtractor={(item) => item._id}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.produtosList}
+              extraData={[filteredProducts, comanda, loadingItems, quantidade]}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              removeClippedSubviews
               ListHeaderComponent={(
                 <>
                   <SearchAndFilter
@@ -454,10 +522,9 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    {searchText || selectedCategory 
+                    {searchText || selectedCategory
                       ? 'Nenhum produto encontrado com os filtros aplicados'
-                      : 'Nenhum produto disponível'
-                    }
+                      : 'Nenhum produto disponível'}
                   </Text>
                 </View>
               }
@@ -485,50 +552,24 @@ export default function ProdutosComandaModal({ visible, onClose, comanda, onUpda
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
-              {comanda?.itens && comanda.itens.length > 0 ? (
-                comanda.itens.map((item: CartItem, index: number) => (
-                  <View key={`${item._id}-${index}`} style={styles.itemSelecionadoCard}>
-                    <View style={styles.itemInfo}>
-                      <Text style={styles.itemNome}>{item.nomeProduto}</Text>
-                      <Text style={styles.itemPreco}>R$ {item.precoUnitario?.toFixed(2)}</Text>
-                    </View>
-                    
-                    <View style={styles.itemControles}>
-                      <TouchableOpacity 
-                        style={styles.btnControle}
-                        onPress={() => decrementarQuantidadeItem(item)}
-                      >
-                        <Text style={styles.btnControleText}>-</Text>
-                      </TouchableOpacity>
-                      
-                      <Text style={styles.quantidadeDisplay}>{item.quantidade}</Text>
-                      
-                      <TouchableOpacity 
-                        style={styles.btnControle}
-                        onPress={() => incrementarQuantidadeItem(item)}
-                      >
-                        <Text style={styles.btnControleText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    <Text style={styles.itemTotal}>
-                      R$ {item.subtotal?.toFixed(2)}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.semItens}>Nenhum item adicionado à comanda</Text>
-              )}
-              
-              {comanda?.itens && comanda.itens.length > 0 && (
+            {/* Lista de itens selecionados */}
+            <FlatList
+              data={comanda?.itens || []}
+              keyExtractor={(item, idx) => (item._id || item.produto?._id || `item-${idx}`)}
+              renderItem={renderItemSelecionado}
+              contentContainerStyle={{ padding: 15 }}
+              extraData={[comanda?.itens, loadingItems]}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={<Text style={styles.semItens}>Nenhum item selecionado</Text>}
+              ListFooterComponent={
                 <View style={styles.totalGeralContainer}>
                   <Text style={styles.totalGeralText}>
-                    Total Geral: R$ {comanda.total?.toFixed(2)}
+                    Total: R$ {((comanda?.itens || []).reduce((acc, it) => acc + (it.subtotal ?? (it.quantidade * (it.precoUnitario ?? 0))), 0)).toFixed(2)}
                   </Text>
                 </View>
-              )}
-            </ScrollView>
+              }
+              getItemLayout={(data, index) => ({ length: 70, offset: 70 * index, index })}
+            />
           </View>
         </View>
       </Modal>
@@ -754,48 +795,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   produtoCard: {
-     flexDirection: 'column',
-     padding: 12,
-     marginBottom: 8,
-     backgroundColor: 'white',
-     borderRadius: 8,
-     borderWidth: 1,
-     borderColor: '#ddd',
-     elevation: 1,
-     shadowColor: '#000',
-     shadowOffset: { width: 0, height: 1 },
-     shadowOpacity: 0.05,
-     shadowRadius: 2,
-   },
-   produtoAdicionado: {
-     backgroundColor: '#e8f5e8',
-     borderColor: '#4caf50',
-   },
-   produtoInfo: {
-     flex: 1,
-     marginBottom: 8,
-   },
-   produtoNome: {
-     fontSize: 16,
-     fontWeight: '600',
-     color: '#333',
-     textAlign: 'left',
-   },
-   produtoRightSection: {
-     flexDirection: 'row',
-     justifyContent: 'space-between',
-     alignItems: 'center',
-     width: '100%',
-   },
-   produtoPreco: {
-     fontSize: 16,
-     fontWeight: '600',
-     color: '#27ae60',
-   },
-   produtoControles: {
-     flexDirection: 'row',
-     alignItems: 'center',
-   },
+    flexDirection: 'column',
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  produtoAdicionado: {
+    backgroundColor: '#e8f5e8',
+    borderColor: '#4caf50',
+  },
+  produtoTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  produtoInfo: {
+    flex: 1,
+    marginBottom: 0,
+    marginRight: 12,
+  },
+  produtoNome: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'left',
+  },
+  produtoRightSection: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  produtoPreco: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#27ae60',
+    marginRight: 12,
+  },
+  produtoControles: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   btnControle: {
     width: 35,
     height: 35,

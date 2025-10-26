@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const { login, loading, clearAllStorage } = useAuth();
   const [loginLoading, setLoginLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     console.log('🚀 handleLogin chamado com:', { email, password: '***' });
@@ -77,12 +78,21 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              onKeyPress={({ nativeEvent }) => {
+                if (nativeEvent.key === 'Enter') {
+                  passwordRef.current?.focus();
+                }
+              }}
             />
           </View>
 
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed" size={20} color="#666" style={styles.inputIcon} />
             <TextInput
+              ref={passwordRef}
               style={styles.input}
               placeholder="Senha"
               value={password}
@@ -90,6 +100,13 @@ export default function LoginScreen() {
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={handleLogin}
+              onKeyPress={({ nativeEvent }) => {
+                if (nativeEvent.key === 'Enter') {
+                  handleLogin();
+                }
+              }}
             />
             <TouchableOpacity
               style={styles.eyeIcon}

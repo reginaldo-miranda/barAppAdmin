@@ -58,28 +58,24 @@ const ProductSelector = ({
       
       const activeProducts = response.data.filter(product => product.ativo && product.disponivel);
       console.log('Active products:', activeProducts.length);
-      console.log('Sample product:', activeProducts[0]);
       
-      // Extrair grupos únicos dos produtos
-      const uniqueGroups = [...new Set(activeProducts.map(product => product.grupo).filter(grupo => grupo && grupo.trim()))];
-      console.log('=== GRUPOS REAIS DOS PRODUTOS ===');
-      console.log('Grupos encontrados:', uniqueGroups);
-      console.log('Total de grupos únicos:', uniqueGroups.length);
+      // Normalizar campos com fallbacks seguros
+      const normalizedProducts = activeProducts.map((p) => ({
+        ...p,
+        nome: p?.nome ?? p?.nomeProduto ?? p?.produto?.nome ?? p?.name ?? 'Produto',
+        descricao: p?.descricao ?? p?.productDescription ?? p?.desc ?? '',
+        grupo: p?.grupo ?? p?.categoria ?? p?.category ?? 'Outros',
+      }));
       
-      // Log de alguns produtos com seus grupos
-      console.log('=== EXEMPLOS DE PRODUTOS E GRUPOS ===');
-      activeProducts.slice(0, 5).forEach(product => {
-        console.log(`Produto: "${product.nome}" - Grupo: "${product.grupo}"`);
-      });
+      // Extrair grupos únicos dos produtos normalizados
+      const uniqueGroups = [...new Set(normalizedProducts.map(product => product.grupo).filter(grupo => grupo && String(grupo).trim()))];
       
-      // Criar categorias dinamicamente baseadas nos grupos dos produtos
       const dynamicCategories = uniqueGroups.map(grupo => ({
         key: grupo,
-        label: grupo.charAt(0).toUpperCase() + grupo.slice(1),
+        label: String(grupo).charAt(0).toUpperCase() + String(grupo).slice(1),
         icon: '📦'
       }));
       
-      // Adicionar "Todos" no início
       const finalCategories = [
         { key: 'todos', label: 'Todos', icon: '🍽️' },
         ...dynamicCategories
@@ -88,8 +84,8 @@ const ProductSelector = ({
       console.log('Categorias criadas dinamicamente:', finalCategories);
       setCategories(finalCategories);
       
-      setProducts(activeProducts);
-      setFilteredProducts(activeProducts);
+      setProducts(normalizedProducts);
+      setFilteredProducts(normalizedProducts);
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
       Alert.alert('Erro', 'Não foi possível carregar os produtos');
@@ -115,33 +111,24 @@ const ProductSelector = ({
     let filtered = [...products];
     console.log('Starting with', filtered.length, 'products');
 
-    // Filtrar por grupo
+    // Filtrar por grupo (com fallback já normalizado)
     if (selectedCategory && selectedCategory !== 'todos') {
-      console.log('Filtering by group:', selectedCategory);
       const beforeFilter = filtered.length;
       filtered = filtered.filter(product => {
-        const matches = product.grupo === selectedCategory;
-        if (!matches) {
-          console.log(`Product "${product.nome}" group "${product.grupo}" doesn't match "${selectedCategory}"`);
-        }
-        return matches;
+        const groupVal = product?.grupo ?? product?.categoria ?? 'Outros';
+        return String(groupVal) === selectedCategory;
       });
       console.log(`Group filter: ${beforeFilter} -> ${filtered.length} products`);
     }
 
-    // Filtrar por texto de busca
+    // Filtrar por texto de busca (com fallbacks seguros)
     if (searchText && searchText.trim()) {
-      console.log('Filtering by search text:', searchText);
       const searchLower = searchText.toLowerCase().trim();
       const beforeFilter = filtered.length;
       filtered = filtered.filter(product => {
-        const nameMatch = product.nome && product.nome.toLowerCase().includes(searchLower);
-        const descMatch = product.descricao && product.descricao.toLowerCase().includes(searchLower);
-        const matches = nameMatch || descMatch;
-        if (!matches) {
-          console.log(`Product "${product.nome}" doesn't match search "${searchText}"`);
-        }
-        return matches;
+        const nameLower = String(product?.nome ?? product?.nomeProduto ?? product?.produto?.nome ?? product?.name ?? '').toLowerCase();
+        const descLower = String(product?.descricao ?? product?.productDescription ?? product?.desc ?? '').toLowerCase();
+        return nameLower.includes(searchLower) || descLower.includes(searchLower);
       });
       console.log(`Search filter: ${beforeFilter} -> ${filtered.length} products`);
     }
@@ -207,13 +194,13 @@ const ProductSelector = ({
       onPress={() => handleProductPress(item)}
     >
       <View style={styles.productLeftSection}>
-        <Text style={styles.productPrice}>R$ {item.precoVenda.toFixed(2)}</Text>
+        <Text style={styles.productPrice}>R$ {Number(item?.precoVenda || 0).toFixed(2)}</Text>
         <Ionicons name="chevron-forward" size={20} color="#ccc" style={styles.chevronIcon} />
       </View>
       <View style={styles.productRightSection}>
-        <Text style={styles.productName} numberOfLines={2}>{item.nome}</Text>
-        {item.descricao && (
-          <Text style={styles.productDescription} numberOfLines={1}>{item.descricao}</Text>
+        <Text style={styles.productName} numberOfLines={2}>{String(item?.nome ?? item?.nomeProduto ?? item?.produto?.nome ?? item?.name ?? 'Produto')}</Text>
+        {Boolean(item?.descricao ?? item?.productDescription ?? item?.desc) && (
+          <Text style={styles.productDescription} numberOfLines={1}>{String(item?.descricao ?? item?.productDescription ?? item?.desc)}</Text>
         )}
       </View>
     </TouchableOpacity>
