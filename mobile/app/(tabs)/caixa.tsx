@@ -254,8 +254,9 @@ export default function CaixaScreen() {
       if (numeroMesa != null) return `Mesa ${numeroMesa}`;
       return 'Mesa';
     }
-    if (venda.nomeComanda) return venda.nomeComanda;
-    if (venda.numeroComanda) return venda.numeroComanda;
+    // Quando for comanda, explicitar “Comanda” no título
+    if (venda.nomeComanda) return `Comanda ${venda.nomeComanda}`;
+    if (venda.numeroComanda) return `Comanda ${venda.numeroComanda}`;
     return 'Comanda';
   };
 
