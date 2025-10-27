@@ -32,9 +32,12 @@ const SaleItemsModal: React.FC<SaleItemsModalProps> = ({ visible, items, total, 
           </TouchableOpacity>
         </View>
         <Text style={styles.itemSubtotal}>R$ {item.subtotal?.toFixed(2)}</Text>
-        <TouchableOpacity style={styles.trashButton} onPress={() => onRemoveItem(item)}>
-          <Ionicons name="trash-outline" size={20} color="#b00020" />
-        </TouchableOpacity>
+        <TouchableOpacity
+           style={styles.trashButton}
+           onPress={() => onRemoveItem(item)}
+         >
+           <Ionicons name="trash-outline" size={20} color="#b00020" />
+         </TouchableOpacity>
       </View>
     </View>
   );
@@ -91,8 +94,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     backgroundColor: '#f8f9fa',
@@ -120,12 +123,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -135,27 +139,27 @@ const styles = StyleSheet.create({
   itemRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#333',
   },
   itemPrice: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
   },
   itemActions: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
-    borderRadius: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
   iconButton: {
-    padding: 4,
+    padding: 3,
   },
   itemQuantity: {
     fontSize: 14,
@@ -163,13 +167,13 @@ const styles = StyleSheet.create({
     minWidth: 24,
     textAlign: 'center',
     color: '#333',
-    marginHorizontal: 6,
+    marginHorizontal: 4,
   },
   itemSubtotal: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#2196F3',
-    minWidth: 70,
+    minWidth: 60,
     textAlign: 'right',
   },
   trashButton: {
@@ -196,7 +200,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: '#ddd',
     backgroundColor: '#f8f9fa',
