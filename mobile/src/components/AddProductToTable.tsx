@@ -24,6 +24,7 @@ interface AddProductToTableProps {
   onUpdateItem: (item: CartItem, newQuantity: number) => void;
   onRemoveItem: (item: CartItem) => void;
   isViewMode?: boolean;
+  hideSaleSection?: boolean;
 }
 
 const AddProductToTable: React.FC<AddProductToTableProps> = ({
@@ -32,6 +33,7 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
   onUpdateItem,
   onRemoveItem,
   isViewMode = false,
+  hideSaleSection = false,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -256,38 +258,40 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
           </View>
         )}
 
-        <View style={[
-          styles.saleSection,
-          screenWidth < 768 && styles.saleSectionMobile,
-          isViewMode && styles.saleSectionFullWidth
-        ]}>
-          <View style={styles.saleHeader}>
-            <View style={styles.saleHeaderLeft}>
-              <Text style={styles.saleTitle}>Itens da Venda</Text>
-              <Text style={styles.saleItemCount}>({saleItems.length} itens)</Text>
+        {!hideSaleSection && (
+          <View style={[
+            styles.saleSection,
+            screenWidth < 768 && styles.saleSectionMobile,
+            isViewMode && styles.saleSectionFullWidth
+          ]}>
+            <View style={styles.saleHeader}>
+              <View style={styles.saleHeaderLeft}>
+                <Text style={styles.saleTitle}>Itens da Venda</Text>
+                <Text style={styles.saleItemCount}>({saleItems.length} itens)</Text>
+              </View>
+              <Text style={styles.saleTotal}>R$ {total.toFixed(2)}</Text>
             </View>
-            <Text style={styles.saleTotal}>R$ {total.toFixed(2)}</Text>
-          </View>
 
-          {saleItems.length === 0 ? (
-            <View style={styles.emptySale}>
-              <Ionicons name="receipt-outline" size={48} color="#ccc" />
-              <Text style={styles.emptySaleText}>Nenhum item adicionado</Text>
-              <Text style={styles.emptySaleSubtext}>
-                Adicione produtos para começar a venda
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={saleItems}
-              renderItem={renderSaleItem}
-              keyExtractor={(item) => item._id}
-              style={styles.saleList}
-              contentContainerStyle={styles.saleListContent}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
-        </View>
+            {saleItems.length === 0 ? (
+              <View style={styles.emptySale}>
+                <Ionicons name="receipt-outline" size={48} color="#ccc" />
+                <Text style={styles.emptySaleText}>Nenhum item adicionado</Text>
+                <Text style={styles.emptySaleSubtext}>
+                  Adicione produtos para começar a venda
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={saleItems}
+                renderItem={renderSaleItem}
+                keyExtractor={(item) => item._id}
+                style={styles.saleList}
+                contentContainerStyle={styles.saleListContent}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+          </View>
+        )}
       </View>
 
       <ProductSelectorModal

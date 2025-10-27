@@ -8,6 +8,7 @@ import {
   Modal,
   ActivityIndicator,
   SafeAreaView,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,6 +18,7 @@ import { useConfirmation } from '../src/contexts/ConfirmationContext';
 import AddProductToTable from '../src/components/AddProductToTable';
 import ScreenIdentifier from '../src/components/ScreenIdentifier';
 import { Sale, CartItem, PaymentMethod, Product } from '../src/types/index';
+import SaleItemsModal from '../src/components/SaleItemsModal';
 
 export default function SaleScreen() {
   const { tipo, mesaId, vendaId, viewMode } = useLocalSearchParams();
@@ -32,6 +34,16 @@ export default function SaleScreen() {
   const [nomeResponsavel, setNomeResponsavel] = useState('');
   const [mesa, setMesa] = useState<any>(null);
   const [comanda, setComanda] = useState<any>(null);
+  const [itemsModalVisible, setItemsModalVisible] = useState(false);
+  const isPhone = Dimensions.get('window').width < 768;
+  const [initialItemsModalShown, setInitialItemsModalShown] = useState(false);
+
+  useEffect(() => {
+    if (isPhone && !isViewMode && cart.length > 0 && !initialItemsModalShown) {
+      setItemsModalVisible(true);
+      setInitialItemsModalShown(true);
+    }
+  }, [isPhone, isViewMode, cart.length, initialItemsModalShown]);
 
   const paymentMethods: PaymentMethod[] = [
     { key: 'dinheiro', label: 'Dinheiro', icon: 'cash' },
@@ -216,10 +228,10 @@ export default function SaleScreen() {
             if (item.produto && item.produto._id === product._id) {
               const newQuantity = item.quantidade + 1;
               return {
-                ...item,
-                quantidade: newQuantity,
-                subtotal: item.precoUnitario * newQuantity
-              };
+                  ...item,
+                  quantidade: newQuantity,
+                  subtotal: item.precoUnitario * newQuantity
+                };
             }
             return item;
           });
@@ -414,16 +426,37 @@ export default function SaleScreen() {
            )}
         </View>
         
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {isPhone && !isViewMode && cart.length > 0 && (
+            <TouchableOpacity onPress={() => setItemsModalVisible(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="list" size={18} color="#fff" />
+              <Text style={styles.headerRightButtonText}>Ver itens</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <AddProductToTable
-        saleItems={cart}
+        saleItems={isPhone ? [] : cart}
         onAddProduct={addToCart}
         onUpdateItem={updateCartItem}
         onRemoveItem={removeFromCart}
         isViewMode={isViewMode}
+        hideSaleSection={isPhone}
       />
+
+      {isPhone && (
+        <SaleItemsModal
+          visible={itemsModalVisible}
+          items={cart}
+          total={total}
+          onClose={() => setItemsModalVisible(false)}
+          onAddItems={() => setItemsModalVisible(false)}
+          onIncrementItem={(item) => updateCartItem(item, item.quantidade + 1)}
+          onDecrementItem={(item) => updateCartItem(item, Math.max(item.quantidade - 1, 0))}
+          onRemoveItem={removeFromCart}
+        />
+      )}
 
       {!isViewMode && cart.length > 0 && (
         <TouchableOpacity
@@ -653,5 +686,24 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  headerRightButton: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  headerRightButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
