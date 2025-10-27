@@ -8,7 +8,8 @@ import {
   Modal,
   ActivityIndicator,
   SafeAreaView,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -228,8 +229,8 @@ export default function SaleScreen() {
               const newQuantity = item.quantidade + 1;
               return {
                   ...item,
-                  quantidade: newQuantidade,
-                  subtotal: item.precoUnitario * newQuantidade
+                  quantidade: newQuantity,
+                  subtotal: ((item.precoUnitario ?? item.produto?.preco ?? 0) * newQuantity)
                 };
             }
             return item;
@@ -259,14 +260,20 @@ export default function SaleScreen() {
 
   // Helper: confirmação via Alert (nativa)
   const confirmRemoveAlert = (itemName: string): Promise<boolean> => {
-    console.log('[Alert] solicitando confirmação para remover', itemName);
+    // Web (Expo Web/desktop): usar confirmação nativa do navegador
+    if ((typeof window !== 'undefined') && (Platform as any)?.OS === 'web') {
+      const ok = window.confirm(`Tem certeza que deseja remover ${itemName}?`);
+      return Promise.resolve(ok);
+    }
+
+    // Mobile nativo: usar Alert.alert
     return new Promise((resolve) => {
       Alert.alert(
         'Confirmar Remoção',
         `Tem certeza que deseja remover ${itemName}?`,
         [
-          { text: 'Cancelar', style: 'cancel', onPress: () => { console.log('[Alert] cancelou remoção'); resolve(false); } },
-          { text: 'Remover', style: 'destructive', onPress: () => { console.log('[Alert] confirmou remoção'); resolve(true); } },
+          { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Remover', style: 'destructive', onPress: () => resolve(true) },
         ],
         { cancelable: true }
       );
@@ -329,11 +336,18 @@ export default function SaleScreen() {
         if (newQuantity <= 0) {
           setCart(prevCart => prevCart.filter(cartItem => cartItem._id !== item._id));
         } else {
-          setCart(prevCart => prevCart.map(cartItem => (
-            cartItem._id === item._id
-              ? { ...cartItem, quantidade: newQuantity, subtotal: cartItem.precoUnitario * newQuantity }
-              : cartItem
-          )));
+          setCart(prevCart => prevCart.map(cartItem => {
+            if (cartItem._id !== item._id) return cartItem;
+            const unitPrice =
+              cartItem.precoUnitario ??
+              cartItem.produto?.preco ??
+              0;
+            return {
+              ...cartItem,
+              quantidade: newQuantity,
+              subtotal: unitPrice * newQuantity,
+            };
+          }));
         }
       }
     } catch (error: any) {

@@ -202,7 +202,7 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
           <View style={styles.saleItemActions}>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => onRemoveItem(item)}
+              onPress={() => onUpdateItem(item, Math.max(item.quantidade - 1, 0))}
             >
               <Ionicons name="remove" size={16} color="#ff4444" />
             </TouchableOpacity>
@@ -284,10 +284,15 @@ const AddProductToTable: React.FC<AddProductToTableProps> = ({
               <FlatList
                 data={saleItems}
                 renderItem={renderSaleItem}
-                keyExtractor={(item) => item._id}
+                keyExtractor={(item) => item.produto?._id ?? item._id}
                 style={styles.saleList}
                 contentContainerStyle={styles.saleListContent}
                 showsVerticalScrollIndicator={false}
+                removeClippedSubviews={false}
+                initialNumToRender={20}
+                windowSize={5}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
               />
             )}
           </View>
