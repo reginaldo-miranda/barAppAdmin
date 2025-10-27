@@ -280,10 +280,12 @@ export const tipoService = {
 // Alias para compatibilidade com importações existentes
 export const typeService = {
   list: () => api.get('/tipo/list'),
+  getAll: async () => (await api.get('/tipo/list')).data,
 };
 
 export const unidadeMedidaService = {
   list: () => api.get('/unidade-medida/list'),
+  getAll: async () => (await api.get('/unidade-medida/list')).data,
 };
 
 export const saleService = {
@@ -344,4 +346,15 @@ export const caixaService = {
     api.put(`/caixa/${id}/fechar`, { funcionarioId, valorFechamento, observacoes }),
   registrarVenda: (vendaId, valor, formaPagamento) => 
     api.post('/caixa/registrar-venda', { vendaId, valor, formaPagamento }),
+};
+
+export const userService = {
+  list: () => api.get('/user/list'),
+  getAll: async () => (await api.get('/user/list')).data,
+  getById: (id) => api.get(`/user/${id}`),
+  create: (data) => api.post('/user/create', data),
+  update: (id, data) => api.put(`/user/${id}`, data),
+  updatePermissions: (id, permissoes) => api.put(`/user/${id}/permissions`, { permissoes }),
+  updateStatus: (id, ativo) => api.put(`/user/${id}/status`, { ativo }),
+  delete: (id) => api.delete(`/user/${id}`),
 };

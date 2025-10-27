@@ -31,9 +31,16 @@ PUBLIC_TUNNEL_URL="https://small-trees-rescue.loca.lt/api"
 echo "🔗 URL pública esperada: ${PUBLIC_TUNNEL_URL}"
 
 # Iniciar LocalTunnel em background para expor a API
-echo "🌐 Iniciando LocalTunnel em background..."
-(npx localtunnel --port 4000 --subdomain small-trees-rescue >/dev/null 2>&1 &)
+if command -v npx >/dev/null 2>&1; then
+  echo "🌐 Iniciando LocalTunnel em background..."
+  (npx localtunnel --port 4000 --subdomain small-trees-rescue >/dev/null 2>&1 &)
+fi
 
-echo "🔧 Iniciando servidor na porta 4000 (0.0.0.0)..."
-npm start
+# Iniciar servidor somente se a porta não estiver em uso
+if lsof -nP -iTCP:4000 | grep LISTEN >/dev/null; then
+  echo "✅ API já está rodando na porta 4000. Pulando start."
+else
+  echo "🔧 Iniciando servidor na porta 4000 (0.0.0.0)..."
+  npm start
+fi
 

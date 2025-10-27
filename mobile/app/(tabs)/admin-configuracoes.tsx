@@ -10,7 +10,7 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeIcon } from '../../components/SafeIcon';
 import { employeeService, userService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
@@ -58,7 +58,8 @@ export default function AdminConfiguracoesScreen() {
     try {
       setLoading(true);
       const response = await userService.getAll();
-      setUsers(response.data || []);
+      // Ajuste: getAll agora retorna um array diretamente; manter compatibilidade caso venha com .data
+      setUsers(Array.isArray(response) ? response : (response?.data ?? []));
     } catch (error: any) {
       console.error('Erro ao carregar usuários:', error);
       Alert.alert('Erro', 'Erro ao carregar usuários');
@@ -140,7 +141,7 @@ export default function AdminConfiguracoesScreen() {
               style={styles.editButton}
               onPress={() => handleEditPermissions(userItem)}
             >
-              <Ionicons name="settings" size={24} color="#2196F3" />
+              <SafeIcon name="settings" size={24} color="#2196F3" fallbackText="⚙️" />
             </TouchableOpacity>
           )}
         </View>
@@ -152,10 +153,11 @@ export default function AdminConfiguracoesScreen() {
           <View style={styles.permissionsList}>
             {Object.entries(userItem.permissoes).map(([key, value]) => (
               <View key={key} style={styles.permissionItem}>
-                <Ionicons 
+                <SafeIcon 
                   name={value ? "checkmark-circle" : "close-circle"} 
                   size={16} 
                   color={value ? "#4CAF50" : "#f44336"} 
+                  fallbackText={value ? "✓" : "×"}
                 />
                 <Text style={[styles.permissionText, { color: value ? "#4CAF50" : "#f44336" }]}>
                   {getPermissionLabel(key)}
@@ -195,7 +197,7 @@ export default function AdminConfiguracoesScreen() {
   if (!isAdmin()) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color="#ccc" />
+        <SafeIcon name="lock-closed" size={64} color="#ccc" fallbackText="🔒" />
         <Text style={styles.accessDeniedText}>Acesso Negado</Text>
         <Text style={styles.accessDeniedSubtext}>
           Apenas administradores podem acessar as configurações
@@ -213,7 +215,7 @@ export default function AdminConfiguracoesScreen() {
           <Text style={styles.sectionTitle}>Informações do Sistema</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Ionicons name="person-circle" size={24} color="#2196F3" />
+              <SafeIcon name="person-circle" size={24} color="#2196F3" fallbackText="👤" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Usuário Logado</Text>
                 <Text style={styles.infoValue}>{user?.nome || user?.email}</Text>
@@ -221,7 +223,7 @@ export default function AdminConfiguracoesScreen() {
             </View>
             
             <View style={styles.infoRow}>
-              <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
+              <SafeIcon name="shield-checkmark" size={24} color="#4CAF50" fallbackText="✓" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Nível de Acesso</Text>
                 <Text style={styles.infoValue}>Administrador</Text>
@@ -229,7 +231,7 @@ export default function AdminConfiguracoesScreen() {
             </View>
             
             <View style={styles.infoRow}>
-              <Ionicons name="time" size={24} color="#FF9800" />
+              <SafeIcon name="time" size={24} color="#FF9800" fallbackText="⏱" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Último Login</Text>
                 <Text style={styles.infoValue}>
@@ -260,7 +262,7 @@ export default function AdminConfiguracoesScreen() {
           <View style={styles.settingsCard}>
             <TouchableOpacity style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <Ionicons name="notifications" size={24} color="#2196F3" />
+                <SafeIcon name="notifications" size={24} color="#2196F3" fallbackText="🔔" />
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingTitle}>Notificações</Text>
                   <Text style={styles.settingDescription}>
@@ -268,12 +270,12 @@ export default function AdminConfiguracoesScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              <SafeIcon name="chevron-forward" size={20} color="#ccc" fallbackText="›" />
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <Ionicons name="cloud-upload" size={24} color="#4CAF50" />
+                <SafeIcon name="cloud-upload" size={24} color="#4CAF50" fallbackText="⤴︎" />
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingTitle}>Backup</Text>
                   <Text style={styles.settingDescription}>
@@ -281,12 +283,12 @@ export default function AdminConfiguracoesScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              <SafeIcon name="chevron-forward" size={20} color="#ccc" fallbackText="›" />
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.settingItem}>
               <View style={styles.settingContent}>
-                <Ionicons name="shield" size={24} color="#FF9800" />
+                <SafeIcon name="shield" size={24} color="#FF9800" fallbackText="🛡" />
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingTitle}>Segurança</Text>
                   <Text style={styles.settingDescription}>
@@ -294,7 +296,7 @@ export default function AdminConfiguracoesScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              <SafeIcon name="chevron-forward" size={20} color="#ccc" fallbackText="›" />
             </TouchableOpacity>
           </View>
         </View>
@@ -329,10 +331,11 @@ export default function AdminConfiguracoesScreen() {
               {Object.entries(selectedUser.permissoes).map(([key, value]) => (
                 <View key={key} style={styles.permissionRow}>
                   <View style={styles.permissionInfo}>
-                    <Ionicons 
+                    <SafeIcon 
                       name={getPermissionIcon(key) as any} 
                       size={24} 
                       color="#2196F3" 
+                      fallbackText="✓" 
                     />
                     <View style={styles.permissionDetails}>
                       <Text style={styles.permissionLabel}>

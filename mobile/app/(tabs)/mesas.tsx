@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+
+import { SafeIcon } from '../../components/SafeIcon';
 import { mesaService, saleService, employeeService } from '../../src/services/api';
   import ProductSelector from '../../src/components/ProductSelector.js';
   import { useAuth } from '../../src/contexts/AuthContext';
@@ -727,14 +728,14 @@ export default function MesasScreen() {
             }
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Ionicons name={getStatusIcon(item.status)} size={12} color="#fff" />
+            <SafeIcon name={getStatusIcon(item.status)} size={12} color="#fff" fallbackText="•" />
             <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
           </View>
         </View>
 
         <View style={styles.mesaInfo}>
           <View style={styles.infoRow}>
-            <Ionicons name="people" size={16} color="#666" />
+            <SafeIcon name="people" size={16} color="#666" fallbackText="👥" />
             <Text style={styles.infoText}>Capacidade: {item.capacidade} pessoas</Text>
           </View>
           
@@ -742,7 +743,7 @@ export default function MesasScreen() {
           
           {item.observacoes && (
             <View style={styles.infoRow}>
-              <Ionicons name="document-text" size={16} color="#666" />
+              <SafeIcon name="document-text" size={16} color="#666" fallbackText="📄" />
               <Text style={styles.infoText}>Obs: {item.observacoes}</Text>
             </View>
           )}
@@ -750,7 +751,7 @@ export default function MesasScreen() {
 
         {item.status === 'manutencao' && (
           <View style={styles.maintenanceInfo}>
-            <Ionicons name="warning" size={16} color="#FF9800" />
+            <SafeIcon name="warning" size={16} color="#FF9800" fallbackText="!" />
             <Text style={styles.maintenanceText}>Mesa em manutenção</Text>
           </View>
         )}
@@ -762,7 +763,7 @@ export default function MesasScreen() {
                 style={[styles.actionButton, styles.openButton]}
                 onPress={() => abrirMesa(item)}
               >
-                <Ionicons name="play" size={12} color="#fff" />
+                <SafeIcon name="play" size={12} color="#fff" fallbackText="▶" />
                 <Text style={styles.actionButtonText}>Abrir</Text>
               </TouchableOpacity>
             )}
@@ -773,7 +774,7 @@ export default function MesasScreen() {
                   style={[styles.actionButton, styles.addButton]}
                   onPress={() => adicionarProdutos(item)}
                 >
-                  <Ionicons name="add" size={12} color="#fff" />
+                  <SafeIcon name="add" size={12} color="#fff" fallbackText="+" />
                   <Text style={styles.actionButtonText}>Adicionar</Text>
                 </TouchableOpacity>
 
@@ -781,7 +782,7 @@ export default function MesasScreen() {
                   style={[styles.actionButton, styles.viewButton]}
                   onPress={() => verComanda(item)}
                 >
-                  <Ionicons name="eye" size={12} color="#fff" />
+                  <SafeIcon name="eye" size={12} color="#fff" fallbackText="👁" />
                   <Text style={styles.actionButtonText}>Ver</Text>
                 </TouchableOpacity>
 
@@ -798,7 +799,7 @@ export default function MesasScreen() {
                     }
                   }}
                 >
-                  <Ionicons name="cash" size={12} color="#fff" />
+                  <SafeIcon name="cash" size={12} color="#fff" fallbackText="R$" />
                   <Text style={styles.actionButtonText}>Caixa</Text>
                 </TouchableOpacity>
 
@@ -818,7 +819,7 @@ export default function MesasScreen() {
                     }
                   }}
                 >
-                  <Ionicons name="close-circle" size={12} color="#fff" />
+                  <SafeIcon name="close-circle" size={12} color="#fff" fallbackText="×" />
                   <Text style={styles.actionButtonText}>🟣 FECHAR MESA</Text>
                 </TouchableOpacity>
               </>
@@ -829,7 +830,7 @@ export default function MesasScreen() {
                   style={[styles.actionButton, styles.releaseButton]}
                   onPress={() => liberarMesa(item)}
                 >
-                  <Ionicons name="lock-open" size={12} color="#fff" />
+                  <SafeIcon name="lock-open" size={12} color="#fff" fallbackText="🔓" />
                   <Text style={styles.actionButtonText}>Liberar</Text>
                 </TouchableOpacity>
             )}
@@ -839,7 +840,7 @@ export default function MesasScreen() {
                 style={[styles.actionButton, { backgroundColor: '#9E9E9E' }]}
                 onPress={() => colocarEmManutencao(item)}
               >
-                <Ionicons name="construct" size={12} color="#fff" />
+                <SafeIcon name="construct" size={12} color="#fff" fallbackText="🔧" />
                 <Text style={styles.actionButtonText}>Manutenção</Text>
               </TouchableOpacity>
             )}
@@ -909,7 +910,7 @@ export default function MesasScreen() {
               onPressIn={() => showTooltip('criar')}
               onPressOut={hideTooltip}
             >
-              <Ionicons name="add" size={20} color="#fff" />
+              <SafeIcon name="add" size={16} color="#fff" fallbackText="+" />
             </TouchableOpacity>
             {tooltipVisible === 'criar' && (
               <View style={[styles.tooltip, styles.tooltipVisible]}>
@@ -925,7 +926,7 @@ export default function MesasScreen() {
               onPressIn={() => showTooltip('gerar')}
               onPressOut={hideTooltip}
             >
-              <Ionicons name="add" size={20} color="#fff" />
+              <SafeIcon name="add" size={20} color="#fff" fallbackText="+" />
             </TouchableOpacity>
             {tooltipVisible === 'gerar' && (
               <View style={[styles.tooltip, styles.tooltipVisible]}>
@@ -958,7 +959,7 @@ export default function MesasScreen() {
         }
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 50 }}>
-            <Ionicons name="restaurant" size={64} color="#ccc" />
+            <SafeIcon name="restaurant" size={64} color="#ccc" fallbackText="🍽" />
             <Text style={{ color: '#666', marginTop: 16 }}>
               {searchTerm || selectedStatus ? 'Nenhuma mesa encontrada' : 'Nenhuma mesa cadastrada'}
             </Text>
@@ -981,7 +982,7 @@ export default function MesasScreen() {
                 style={styles.modalCloseButton}
                 onPress={() => setGerarMesasModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <SafeIcon name="close" size={24} color="#666" fallbackText="×" />
               </TouchableOpacity>
             </View>
 
@@ -998,7 +999,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, interna: Math.max(0, prev.interna - 1) }))}
                     >
-                      <Ionicons name="remove" size={16} color="#666" />
+                      <SafeIcon name="remove" size={16} color="#666" fallbackText="-" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
@@ -1010,7 +1011,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, interna: prev.interna + 1 }))}
                     >
-                      <Ionicons name="add" size={16} color="#666" />
+                      <SafeIcon name="add" size={16} color="#666" fallbackText="+" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1022,7 +1023,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, externa: Math.max(0, prev.externa - 1) }))}
                     >
-                      <Ionicons name="remove" size={16} color="#666" />
+                      <SafeIcon name="remove" size={16} color="#666" fallbackText="-" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
@@ -1034,7 +1035,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, externa: prev.externa + 1 }))}
                     >
-                      <Ionicons name="add" size={16} color="#666" />
+                      <SafeIcon name="add" size={16} color="#666" fallbackText="+" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1046,7 +1047,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, vip: Math.max(0, prev.vip - 1) }))}
                     >
-                      <Ionicons name="remove" size={16} color="#666" />
+                      <SafeIcon name="remove" size={16} color="#666" fallbackText="-" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
@@ -1058,7 +1059,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, vip: prev.vip + 1 }))}
                     >
-                      <Ionicons name="add" size={16} color="#666" />
+                      <SafeIcon name="add" size={16} color="#666" fallbackText="+" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1070,7 +1071,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, balcao: Math.max(0, prev.balcao - 1) }))}
                     >
-                      <Ionicons name="remove" size={16} color="#666" />
+                      <SafeIcon name="remove" size={16} color="#666" fallbackText="-" />
                     </TouchableOpacity>
                     <TextInput
                       style={styles.quantidadeInput}
@@ -1082,7 +1083,7 @@ export default function MesasScreen() {
                       style={styles.quantidadeButton}
                       onPress={() => setQuantidades(prev => ({ ...prev, balcao: prev.balcao + 1 }))}
                     >
-                      <Ionicons name="add" size={16} color="#666" />
+                      <SafeIcon name="add" size={16} color="#666" fallbackText="+" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1137,7 +1138,7 @@ export default function MesasScreen() {
                 style={styles.modalCloseButton}
                 onPress={fecharModalCriarMesa}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <SafeIcon name="close" size={24} color="#666" fallbackText="×" />
               </TouchableOpacity>
             </View>
 
@@ -1256,7 +1257,7 @@ export default function MesasScreen() {
                 style={styles.modalCloseButton}
                 onPress={() => setAbrirMesaModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <SafeIcon name="close" size={24} color="#666" fallbackText="×" />
               </TouchableOpacity>
             </View>
 
@@ -1290,10 +1291,11 @@ export default function MesasScreen() {
                       : 'Selecione um funcionário'
                     }
                   </Text>
-                  <Ionicons
+                  <SafeIcon
                     name={funcionarioDropdownVisible ? "chevron-up" : "chevron-down"}
                     size={20}
                     color="#666"
+                    fallbackText={funcionarioDropdownVisible ? "↑" : "↓"}
                   />
                 </TouchableOpacity>
 
@@ -1317,7 +1319,7 @@ export default function MesasScreen() {
                           Nenhum funcionário
                         </Text>
                         {!formAbrirMesa.funcionarioResponsavel && (
-                          <Ionicons name="checkmark" size={16} color="#2196F3" />
+                          <SafeIcon name="checkmark" size={16} color="#2196F3" fallbackText="✓" />
                         )}
                       </TouchableOpacity>
                       {funcionarios.map((funcionario: Funcionario) => (
@@ -1339,7 +1341,7 @@ export default function MesasScreen() {
                             {funcionario.nome}
                           </Text>
                           {formAbrirMesa.funcionarioResponsavel === funcionario._id && (
-                            <Ionicons name="checkmark" size={16} color="#2196F3" />
+                            <SafeIcon name="checkmark" size={16} color="#2196F3" fallbackText="✓" />
                           )}
                         </TouchableOpacity>
                       ))}
@@ -1399,7 +1401,7 @@ export default function MesasScreen() {
                 style={styles.modalCloseButton}
                 onPress={() => setFecharMesaModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <SafeIcon name="close" size={24} color="#666" fallbackText="×" />
               </TouchableOpacity>
             </View>
 
@@ -1429,7 +1431,7 @@ export default function MesasScreen() {
                       {method.label}
                     </Text>
                     {fecharPaymentMethod === method.key && (
-                      <Ionicons name="checkmark" size={16} color="#2196F3" />
+                      <SafeIcon name="checkmark" size={16} color="#2196F3" fallbackText="✓" />
                     )}
                   </TouchableOpacity>
                 ))}

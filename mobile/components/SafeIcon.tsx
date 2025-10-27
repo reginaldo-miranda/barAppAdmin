@@ -1,61 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Platform, Text } from 'react-native';
+import React from 'react';
+import { Text, StyleProp, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SafeIconProps {
-  name: keyof typeof Ionicons.glyphMap;
+  name: string;
   size?: number;
   color?: string;
   fallbackText?: string;
+  style?: StyleProp<TextStyle>;
 }
 
-export function SafeIcon({ name, size = 24, color = '#000', fallbackText }: SafeIconProps) {
-  const [fontLoaded, setFontLoaded] = useState(Platform.OS !== 'web');
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Timeout mais curto para web
-      const timer = setTimeout(() => {
-        setFontLoaded(true);
-      }, 100);
-
-      // Verificar se as fontes estão carregadas
-      if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => {
-          clearTimeout(timer);
-          setFontLoaded(true);
-        }).catch(() => {
-          setHasError(true);
-          setFontLoaded(true);
-        });
-      }
-
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  if (!fontLoaded) {
-    return (
-      <Text style={{ fontSize: size, color, width: size, height: size, textAlign: 'center' }}>
-        {fallbackText || '•'}
-      </Text>
-    );
-  }
-
-  if (hasError && fallbackText) {
-    return (
-      <Text style={{ fontSize: size, color, width: size, height: size, textAlign: 'center' }}>
-        {fallbackText}
-      </Text>
-    );
-  }
-
+// SafeIcon estável: sempre usa Ionicons em todas as plataformas.
+// Se houver qualquer falha inesperada, cai para texto simples como fallback.
+export function SafeIcon({ name, size = 24, color = '#000', fallbackText, style }: SafeIconProps) {
   try {
-    return <Ionicons name={name} size={size} color={color} />;
+    return <Ionicons name={name as any} size={size} color={color} style={style as any} />;
   } catch (error) {
     return (
-      <Text style={{ fontSize: size, color, width: size, height: size, textAlign: 'center' }}>
+      <Text style={[{ fontSize: size, lineHeight: size, color }, style as any]}>
         {fallbackText || '•'}
       </Text>
     );

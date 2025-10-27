@@ -12,10 +12,11 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// Removido: import { Ionicons } from '@expo/vector-icons';
 import { employeeService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+import { SafeIcon } from '../../components/SafeIcon';
 
 interface Employee {
   _id: string;
@@ -175,39 +176,39 @@ export default function AdminFuncionariosScreen() {
             style={styles.editButton}
             onPress={() => handleEditEmployee(item)}
           >
-            <Ionicons name="pencil" size={20} color="#2196F3" />
+            <SafeIcon name="pencil" size={20} color="#2196F3" fallbackText="✎" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => handleDeleteEmployee(item)}
           >
-            <Ionicons name="trash" size={20} color="#f44336" />
+            <SafeIcon name="trash" size={20} color="#f44336" fallbackText="🗑" />
           </TouchableOpacity>
         </View>
       </View>
       
       <View style={styles.employeeInfo}>
         <View style={styles.infoRow}>
-          <Ionicons name="call" size={16} color="#666" />
+          <SafeIcon name="call" size={16} color="#666" fallbackText="📞" />
           <Text style={styles.infoText}>{item.telefone || 'Não informado'}</Text>
         </View>
         
         <View style={styles.infoRow}>
-          <Ionicons name="location" size={16} color="#666" />
+          <SafeIcon name="location" size={16} color="#666" fallbackText="📍" />
           <Text style={styles.infoText}>
             {item.endereco ? `${item.endereco}, ${item.bairro}` : 'Endereço não informado'}
           </Text>
         </View>
         
         <View style={styles.infoRow}>
-          <Ionicons name="cash" size={16} color="#666" />
+          <SafeIcon name="cash" size={16} color="#666" fallbackText="💵" />
           <Text style={styles.infoText}>
             {item.salario ? formatCurrency(item.salario) : 'Salário não informado'}
           </Text>
         </View>
         
         <View style={styles.infoRow}>
-          <Ionicons name="calendar" size={16} color="#666" />
+          <SafeIcon name="calendar" size={16} color="#666" fallbackText="📅" />
           <Text style={styles.infoText}>
             Admissão: {formatDate(item.dataAdmissao)}
           </Text>
@@ -225,7 +226,7 @@ export default function AdminFuncionariosScreen() {
   if (!hasPermission('funcionarios')) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color="#ccc" />
+        <SafeIcon name="lock-closed" size={64} color="#ccc" fallbackText="🔒" />
         <Text style={styles.accessDeniedText}>Acesso Negado</Text>
         <Text style={styles.accessDeniedSubtext}>
           Você não tem permissão para gerenciar funcionários
@@ -240,7 +241,9 @@ export default function AdminFuncionariosScreen() {
       {/* Header com busca e botão adicionar */}
       <View style={styles.header}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+          <View style={styles.searchIcon}>
+            <SafeIcon name="search" size={20} color="#666" fallbackText="🔎" />
+          </View>
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar funcionários..."
@@ -255,7 +258,7 @@ export default function AdminFuncionariosScreen() {
             setModalVisible(true);
           }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <SafeIcon name="add" size={24} color="#fff" fallbackText="+" />
         </TouchableOpacity>
       </View>
 

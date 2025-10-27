@@ -1,12 +1,13 @@
 import { Tabs } from 'expo-router';
 import React, { useEffect } from 'react';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+
 import { View, ActivityIndicator } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import ProductsTabButton from '../../src/components/ProductsTabButton';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { SafeIcon } from '../../components/SafeIcon';
 
 export default function TabLayout() {
   const authContext = useAuth() as any;
@@ -56,7 +57,7 @@ export default function TabLayout() {
         options={{
           title: 'Início',
           headerTitle: 'BarApp - Sistema de Vendas',
-          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <SafeIcon name="home" size={24} color={color} fallbackText="Início" />,
         }}
       />
       <Tabs.Screen
@@ -64,7 +65,7 @@ export default function TabLayout() {
         options={{
           title: 'Mesas',
           headerTitle: 'Gerenciar Mesas',
-          tabBarIcon: ({ color }) => <Ionicons name="restaurant" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <SafeIcon name="restaurant" size={24} color={color} fallbackText="Mesas" />,
         }}
       />
       <Tabs.Screen
@@ -72,7 +73,7 @@ export default function TabLayout() {
         options={{
           title: 'Comandas',
           headerTitle: 'Comandas Abertas',
-          tabBarIcon: ({ color }) => <Ionicons name="receipt" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <SafeIcon name="receipt" size={24} color={color} fallbackText="Comandas" />,
         }}
       />
       <Tabs.Screen
@@ -80,7 +81,7 @@ export default function TabLayout() {
         options={{
           title: 'Caixa',
           headerTitle: 'Caixa - Vendas Abertas',
-          tabBarIcon: () => <Ionicons name="cash" size={24} color="#FF0000" />,
+          tabBarIcon: () => <SafeIcon name="cash" size={24} color="#FF0000" fallbackText="R$" />,
         }}
       />
       <Tabs.Screen
@@ -88,7 +89,7 @@ export default function TabLayout() {
         options={{
           title: 'Histórico',
           headerTitle: 'Histórico de Vendas',
-          tabBarIcon: ({ color }) => <Ionicons name="time" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <SafeIcon name="time" size={24} color={color} fallbackText="Hist." />,
         }}
       />
       
@@ -114,7 +115,7 @@ export default function TabLayout() {
           options={{
             title: 'Funcionários',
             headerTitle: 'Gerenciar Funcionários',
-            tabBarIcon: ({ color }) => <Ionicons name="people" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <SafeIcon name="people" size={24} color={color} fallbackText="Func." />,
           }}
         />
       )}
@@ -125,7 +126,7 @@ export default function TabLayout() {
           options={{
             title: 'Clientes',
             headerTitle: 'Gerenciar Clientes',
-            tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <SafeIcon name="person" size={24} color={color} fallbackText="Cli." />,
           }}
         />
       )}
@@ -136,7 +137,7 @@ export default function TabLayout() {
           options={{
             title: 'Config',
             headerTitle: 'Configurações do Sistema',
-            tabBarIcon: ({ color }) => <Ionicons name="settings" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <SafeIcon name="settings" size={24} color={color} fallbackText="Conf." />,
           }}
         />
       )}

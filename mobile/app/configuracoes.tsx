@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS, getSecureItem, setSecureItem } from '../src/services/storage';
 import { testApiConnection, API_URL } from '../src/services/api';
 import { scanWifiNetworks, connectToWifi, isWifiConnectionRealPossible } from '../src/services/wifi';
+import { SafeIcon } from '../components/SafeIcon';
 
 export default function ConfiguracoesScreen() {
   // API
@@ -306,7 +307,7 @@ const getEnvApiUrl = (): string | undefined => {
               <ActivityIndicator color="#2196F3" />
             ) : (
               <>
-                <Ionicons name="link" size={18} color="#2196F3" />
+                <SafeIcon name="link" size={18} color="#2196F3" fallbackText="🔗" />
                 <Text style={[styles.buttonText, { color: '#2196F3' }]}> Testar Conexão</Text>
               </>
             )}
@@ -316,7 +317,7 @@ const getEnvApiUrl = (): string | undefined => {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Ionicons name="save" size={18} color="#fff" />
+                <SafeIcon name="save" size={18} color="#fff" fallbackText="💾" />
                 <Text style={styles.primaryButtonText}> Salvar API</Text>
               </>
             )}
@@ -336,7 +337,7 @@ const getEnvApiUrl = (): string | undefined => {
 
         {testStatus && (
           <View style={[styles.testResult, testStatus.ok ? styles.testOk : styles.testFail]}>
-            <Ionicons name={testStatus.ok ? 'checkmark-circle' : 'alert-circle'} size={18} color={testStatus.ok ? '#2e7d32' : '#b71c1c'} />
+            <Ionicons name={testStatus.ok ? 'checkmark-circle' : 'alert-circle'} size={18} color={testStatus.ok ? '#2e7d32' : '#b71c1c'} fallbackText={testStatus.ok ? '✓' : '!'} />
             <Text style={[styles.testResultText, { color: testStatus.ok ? '#2e7d32' : '#b71c1c' }]}>
               {testStatus.message}
             </Text>

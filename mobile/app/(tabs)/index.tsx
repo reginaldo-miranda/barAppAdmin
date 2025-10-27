@@ -9,11 +9,12 @@ import {
   RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+
 import { useAuth } from '../../src/contexts/AuthContext';
 import { saleService, mesaService } from '../../src/services/api';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 import { events } from '../../src/utils/eventBus'
+import { SafeIcon } from '../../components/SafeIcon';
 
 export default function HomeScreen() {
   const authContext = useAuth() as any;
@@ -167,11 +168,11 @@ export default function HomeScreen() {
             activeOpacity={0.8}
             accessibilityLabel="Abrir Configurações"
           >
-            <Ionicons name="settings" size={22} color="#fff" />
+            <SafeIcon name="settings" size={22} color="#fff" fallbackText="Cfg" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="log-out" size={22} color="#fff" />
+              <SafeIcon name="log-out" size={22} color="#fff" fallbackText="Sair" />
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Sair</Text>
             </View>
           </TouchableOpacity>
@@ -183,22 +184,22 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Status de Hoje</Text>
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: '#E8F5E8' }]}>
-            <Ionicons name="trending-up" size={24} color="#4CAF50" />
+            <SafeIcon name="trending-up" size={24} color="#4CAF50" fallbackText="↑" />
             <Text style={styles.statNumber}>{stats.totalSales}</Text>
             <Text style={styles.statLabel}>Vendas</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
-            <Ionicons name="cash" size={24} color="#FF0000" />
+            <SafeIcon name="cash" size={24} color="#FF0000" fallbackText="R$" />
             <Text style={styles.statNumber}>R$ {stats.totalRevenue.toFixed(2)}</Text>
             <Text style={styles.statLabel}>Faturamento</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}>
-            <Ionicons name="restaurant" size={24} color="#FF9800" />
+            <SafeIcon name="restaurant" size={24} color="#FF9800" fallbackText="🍽" />
             <Text style={styles.statNumber}>{stats.openTables}</Text>
             <Text style={styles.statLabel}>Mesas Abertas</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: '#F3E5F5' }]}>
-            <Ionicons name="receipt" size={24} color="#9C27B0" />
+            <SafeIcon name="receipt" size={24} color="#9C27B0" fallbackText="Rec" />
             <Text style={styles.statNumber}>{stats.openComandas}</Text>
             <Text style={styles.statLabel}>Comandas Abertas</Text>
           </View>
@@ -216,13 +217,14 @@ export default function HomeScreen() {
               onPress={item.onPress}
             >
               <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon as any} size={28} color="#fff" />
+                <SafeIcon name={item.icon as any} size={28} color="#fff" fallbackText="▶" />
               </View>
               <View style={styles.menuContent}>
                 <Text style={styles.menuTitle}>{item.title}</Text>
                 <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+
+
             </TouchableOpacity>
           ))}
         </View>

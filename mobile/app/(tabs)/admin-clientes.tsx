@@ -12,10 +12,11 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { customerService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+import { SafeIcon } from '../../components/SafeIcon';
 
 interface Customer {
   _id: string;
@@ -190,13 +191,13 @@ export default function AdminClientesScreen() {
             style={styles.editButton}
             onPress={() => handleEditCustomer(item)}
           >
-            <Ionicons name="pencil" size={20} color="#2196F3" />
+            <SafeIcon name="pencil" size={20} color="#2196F3" fallbackText="✎" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => handleDeleteCustomer(item)}
           >
-            <Ionicons name="trash" size={20} color="#f44336" />
+            <SafeIcon name="trash" size={20} color="#f44336" fallbackText="🗑" />
           </TouchableOpacity>
         </View>
       </View>
@@ -204,21 +205,21 @@ export default function AdminClientesScreen() {
       <View style={styles.customerInfo}>
         {item.fone && (
           <View style={styles.infoRow}>
-            <Ionicons name="call" size={16} color="#666" />
+            <SafeIcon name="call" size={16} color="#666" fallbackText="📞" />
             <Text style={styles.infoText}>{formatPhone(item.fone)}</Text>
           </View>
         )}
         
         {item.cpf && (
           <View style={styles.infoRow}>
-            <Ionicons name="card" size={16} color="#666" />
+            <SafeIcon name="card" size={16} color="#666" fallbackText="💳" />
             <Text style={styles.infoText}>CPF: {formatCPF(item.cpf)}</Text>
           </View>
         )}
         
         {item.endereco && (
           <View style={styles.infoRow}>
-            <Ionicons name="location" size={16} color="#666" />
+            <SafeIcon name="location" size={16} color="#666" fallbackText="📍" />
             <Text style={styles.infoText}>
               {item.endereco}
               {item.cidade && `, ${item.cidade}`}
@@ -229,7 +230,7 @@ export default function AdminClientesScreen() {
         
         {item.dataNascimento && (
           <View style={styles.infoRow}>
-            <Ionicons name="calendar" size={16} color="#666" />
+            <SafeIcon name="calendar" size={16} color="#666" fallbackText="📅" />
             <Text style={styles.infoText}>
               Nascimento: {formatDate(item.dataNascimento)}
             </Text>
@@ -237,7 +238,7 @@ export default function AdminClientesScreen() {
         )}
         
         <View style={styles.infoRow}>
-          <Ionicons name="time" size={16} color="#666" />
+          <SafeIcon name="time" size={16} color="#666" fallbackText="⏱" />
           <Text style={styles.infoText}>
             Cliente desde: {formatDate(item.dataInclusao)}
           </Text>
@@ -255,7 +256,7 @@ export default function AdminClientesScreen() {
   if (!hasPermission('clientes')) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color="#ccc" />
+        <SafeIcon name="lock-closed" size={64} color="#ccc" fallbackText="🔒" />
         <Text style={styles.accessDeniedText}>Acesso Negado</Text>
         <Text style={styles.accessDeniedSubtext}>
           Você não tem permissão para gerenciar clientes
@@ -270,7 +271,7 @@ export default function AdminClientesScreen() {
       {/* Header com busca e botão adicionar */}
       <View style={styles.header}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+          <SafeIcon name="search" size={20} color="#666" fallbackText="🔍" />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar clientes..."
@@ -285,7 +286,7 @@ export default function AdminClientesScreen() {
             setModalVisible(true);
           }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <SafeIcon name="add" size={24} color="#fff" fallbackText="+" />
         </TouchableOpacity>
       </View>
 

@@ -8,14 +8,15 @@ import {
   ActivityIndicator, 
   RefreshControl,
   Alert,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { saleService, API_URL, caixaService } from '../../src/services/api';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 import { events } from '../../src/utils/eventBus';
 import { mesaService } from '../../src/services/api';
+import { SafeIcon } from '../../components/SafeIcon';
 
 interface Sale {
   _id: string;
@@ -70,6 +71,10 @@ export default function CaixaScreen() {
   // Filtro por data (padrão hoje)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
+  const [marks, setMarks] = useState<Record<string, boolean>>({});
+  const [markFilter, setMarkFilter] = useState<'all' | 'marked' | 'unmarked'>('all');
+  const [paymentFilterWeb, setPaymentFilterWeb] = useState<'all' | 'dinheiro' | 'cartao' | 'pix'>('all');
+
   // Helpers e cálculos para filtro por data e subtotais
   const formatSelectedDate = selectedDate.toLocaleDateString('pt-BR');
   const prevDay = () => setSelectedDate((d: Date) => new Date(d.getTime() - 86400000));
@@ -77,7 +82,24 @@ export default function CaixaScreen() {
 
   const filteredCaixaVendas: CaixaVenda[] = caixaVendas.filter((cv: CaixaVenda) => {
     const dv = new Date(cv.dataVenda || cv.venda?.createdAt);
-    return dv.toDateString() === selectedDate.toDateString();
+    const matchDate = dv.toDateString() === selectedDate.toDateString();
+
+    if (!matchDate) return false;
+
+    if (Platform.OS !== 'web') {
+      return true;
+    }
+
+    const isMarked = !!marks[cv.venda._id];
+    const matchMark =
+      markFilter === 'all' ||
+      (markFilter === 'marked' ? isMarked : !isMarked);
+
+    const method = String(cv.formaPagamento || '').toLowerCase();
+    const matchPayment =
+      paymentFilterWeb === 'all' || method === paymentFilterWeb;
+
+    return matchMark && matchPayment;
   });
 
   const paymentTotals: Record<string, number> = filteredCaixaVendas.reduce((acc: Record<string, number>, cv: CaixaVenda) => {
@@ -194,11 +216,40 @@ export default function CaixaScreen() {
     setModalVisible(true);
   };
 
+  const persistMarks = (next: Record<string, boolean>) => {
+    if (Platform.OS === 'web') {
+      try {
+        window.localStorage.setItem('caixaMarks', JSON.stringify(next));
+      } catch (e) {
+        console.log('Falha ao salvar marcas', e);
+      }
+    }
+  };
+
+  const toggleMark = (saleId: string) => {
+    setMarks(prev => {
+      const next = { ...prev, [saleId]: !prev[saleId] };
+      persistMarks(next);
+      return next;
+    });
+  };
+
   useEffect(() => {
     loadVendas();
     loadCaixaAberto();
     const unsubscribe = events.on('caixa:refresh', () => onRefresh());
     return () => unsubscribe && unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      try {
+        const saved = window.localStorage.getItem('caixaMarks');
+        if (saved) setMarks(JSON.parse(saved));
+      } catch (e) {
+        console.log('Falha ao carregar marcas do localStorage', e);
+      }
+    }
   }, []);
 
   // Quando caixaVendas atualiza, buscar mesa faltando populate
@@ -290,7 +341,7 @@ export default function CaixaScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Sistema de Caixa</Text>
         <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={24} color="#2196F3" />
+          <SafeIcon name="refresh" size={24} color="#2196F3" fallbackText="↻" />
         </TouchableOpacity>
       </View>
 
@@ -304,7 +355,7 @@ export default function CaixaScreen() {
         <Text style={[styles.sectionTitle]}>Vendas em aberto</Text>
         {vendas.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="receipt-outline" size={64} color="#ccc" />
+            <SafeIcon name="receipt-outline" size={64} color="#ccc" fallbackText="🧾" />
             <Text style={styles.emptyText}>Nenhuma venda em aberto</Text>
           </View>
         ) : (
@@ -323,7 +374,7 @@ export default function CaixaScreen() {
                     onPress={() => abrirModalFinalizacao(venda)}
                     accessibilityLabel="Finalizar venda"
                   >
-                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                    <SafeIcon name="checkmark-circle" size={24} color="#4CAF50" fallbackText="✓" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -340,18 +391,18 @@ export default function CaixaScreen() {
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Vendas registradas no Caixa</Text>
         {!hasCaixaAberto ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="cash-outline" size={64} color="#ccc" />
+            <SafeIcon name="cash-outline" size={64} color="#ccc" fallbackText="＄" />
             <Text style={styles.emptyText}>Nenhum caixa aberto</Text>
           </View>
         ) : (
           <>
             <View style={styles.filterBar}>
               <TouchableOpacity onPress={prevDay} accessibilityLabel="Dia anterior">
-                <Ionicons name="chevron-back" size={20} color="#333" />
+                <SafeIcon name="chevron-back" size={20} color="#333" fallbackText="‹" />
               </TouchableOpacity>
               <Text style={styles.dateDisplay}>{formatSelectedDate}</Text>
               <TouchableOpacity onPress={nextDay} accessibilityLabel="Próximo dia">
-                <Ionicons name="chevron-forward" size={20} color="#333" />
+                <SafeIcon name="chevron-forward" size={20} color="#333" fallbackText="›" />
               </TouchableOpacity>
             </View>
 
@@ -367,9 +418,47 @@ export default function CaixaScreen() {
               )}
             </View>
 
+            {Platform.OS === 'web' && (
+              <View style={styles.filterBar}>
+                <View style={{ flexDirection: 'row' }}>
+                  <TouchableOpacity
+                    style={[styles.paymentOption, markFilter === 'all' && styles.paymentOptionSelected]}
+                    onPress={() => setMarkFilter('all')}
+                  >
+                    <Text style={[styles.paymentOptionText, markFilter === 'all' && styles.paymentOptionTextSelected]}>Todos</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.paymentOption, markFilter === 'marked' && styles.paymentOptionSelected]}
+                    onPress={() => setMarkFilter('marked')}
+                  >
+                    <Text style={[styles.paymentOptionText, markFilter === 'marked' && styles.paymentOptionTextSelected]}>Marcados</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.paymentOption, markFilter === 'unmarked' && styles.paymentOptionSelected]}
+                    onPress={() => setMarkFilter('unmarked')}
+                  >
+                    <Text style={[styles.paymentOptionText, markFilter === 'unmarked' && styles.paymentOptionTextSelected]}>Não marcados</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row' }}>
+                  {['all', 'dinheiro', 'cartao', 'pix'].map((method) => (
+                    <TouchableOpacity
+                      key={method}
+                      style={[styles.paymentOption, paymentFilterWeb === method && styles.paymentOptionSelected]}
+                      onPress={() => setPaymentFilterWeb(method as any)}
+                    >
+                      <Text style={[styles.paymentOptionText, paymentFilterWeb === method && styles.paymentOptionTextSelected]}>
+                        {method === 'all' ? 'Todas' : method.charAt(0).toUpperCase() + method.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {filteredCaixaVendas.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="list-outline" size={64} color="#ccc" />
+                <SafeIcon name="list-outline" size={64} color="#ccc" fallbackText="≡" />
                 <Text style={styles.emptyText}>Nenhuma venda registrada no caixa</Text>
               </View>
             ) : (
@@ -404,7 +493,23 @@ export default function CaixaScreen() {
                           ? (mesaObj?.nome || (mesaObj?.numero != null ? `Mesa ${mesaObj?.numero}` : 'Mesa'))
                           : getVendaTitle(cv.venda)}
                       </Text>
-                      <Text style={styles.vendaTotal}>R$ {cv.valor.toFixed(2)}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={styles.vendaTotal}>R$ {cv.valor.toFixed(2)}</Text>
+                        {Platform.OS === 'web' && (
+                          <TouchableOpacity
+                            style={styles.rowAction}
+                            onPress={() => toggleMark(cv.venda._id)}
+                            accessibilityLabel={marks[cv.venda._id] ? 'Desmarcar' : 'Marcar'}
+                          >
+                            <SafeIcon
+                              name={marks[cv.venda._id] ? 'checkbox' : 'square-outline'}
+                              size={22}
+                              color={marks[cv.venda._id] ? '#2196F3' : '#999'}
+                              fallbackText={marks[cv.venda._id] ? '☑' : '☐'}
+                            />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                     <View style={styles.rowLine}>
                       <Text style={styles.vendaInfoCompact}>

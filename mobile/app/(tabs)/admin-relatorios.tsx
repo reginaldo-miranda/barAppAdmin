@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeIcon } from '../../components/SafeIcon';
 import { saleService, productService, customerService, employeeService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
@@ -179,7 +179,7 @@ export default function AdminRelatoriosScreen() {
   const renderStatCard = (title: string, value: string | number, icon: string, color: string) => (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
       <View style={styles.statCardHeader}>
-        <Ionicons name={icon as any} size={24} color={color} />
+        <SafeIcon name={icon as any} size={24} color={color} fallbackText="•" />
         <Text style={styles.statCardTitle}>{title}</Text>
       </View>
       <Text style={styles.statCardValue}>{value}</Text>

@@ -11,10 +11,11 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// Removido: import { Ionicons } from '@expo/vector-icons';
 import { saleService } from '../../src/services/api';
 import SearchAndFilter from '../../src/components/SearchAndFilter';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
+import { SafeIcon } from '../../components/SafeIcon';
 
 interface Sale {
   _id: string;
@@ -203,7 +204,7 @@ export default function HistoricoScreen() {
             #{item.numeroComanda || item.nomeComanda || item._id.slice(-6)}
           </Text>
           <View style={styles.typeContainer}>
-            <Ionicons name={getTypeIcon(item.tipoVenda) as any} size={16} color={getTypeColor(item.tipoVenda)} />
+            <SafeIcon name={getTypeIcon(item.tipoVenda) as any} size={16} color={getTypeColor(item.tipoVenda)} fallbackText="T" />
             <Text style={[styles.typeText, { color: getTypeColor(item.tipoVenda) }]}>
               {getTypeText(item.tipoVenda)}
               {item.mesa?.numero && ` ${item.mesa.numero}`}
@@ -222,19 +223,19 @@ export default function HistoricoScreen() {
       
       <View style={styles.saleDetails}>
         <View style={styles.detailRow}>
-          <Ionicons name="person" size={14} color="#666" />
+          <SafeIcon name="person" size={14} color="#666" fallbackText="👤" />
           <Text style={styles.detailText}>
             {item.cliente?.nome || 'Cliente não informado'}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="time" size={14} color="#666" />
+          <SafeIcon name="time" size={14} color="#666" fallbackText="⏱" />
           <Text style={styles.detailText}>
             {new Date(item.dataVenda).toLocaleString('pt-BR')}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="card" size={14} color="#666" />
+          <SafeIcon name="card" size={14} color="#666" fallbackText="💳" />
           <Text style={styles.detailText}>
             {item.formaPagamento || 'Não informado'}
           </Text>
@@ -321,7 +322,7 @@ export default function HistoricoScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={64} color="#ccc" />
+            <SafeIcon name="document-text-outline" size={64} color="#ccc" fallbackText="doc" />
             <Text style={styles.emptyText}>Nenhuma venda encontrada</Text>
           </View>
         }
@@ -338,7 +339,7 @@ export default function HistoricoScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Detalhes da Venda</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#333" />
+                <SafeIcon name="close" size={24} color="#333" fallbackText="×" />
               </TouchableOpacity>
             </View>
             

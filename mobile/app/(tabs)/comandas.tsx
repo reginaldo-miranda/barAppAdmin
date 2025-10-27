@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+
 import CriarComandaModal from '../../src/components/CriarComandaModal';
 // import ProdutosComandaModal from '../../src/components/ProdutosComandaModal';
 import SearchAndFilter from '../../src/components/SearchAndFilter';
@@ -10,6 +10,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { Comanda } from '../../src/types/index';
 import ScreenIdentifier from '../../src/components/ScreenIdentifier';
 import { events } from '../../src/utils/eventBus';
+import { SafeIcon } from '../../components/SafeIcon';
 
 export default function ComandasAbertasScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -343,7 +344,7 @@ export default function ComandasAbertasScreen() {
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => router.push('/')} accessibilityLabel="Voltar para Home" style={{ marginRight: 12 }}>
-            <Ionicons name="arrow-back" size={24} color="#2196F3" />
+            <SafeIcon name="arrow-back" size={24} color="#2196F3" fallbackText="←" />
           </TouchableOpacity>
           <Text style={styles.title}>Comandas</Text>
         </View>
@@ -402,7 +403,9 @@ export default function ComandasAbertasScreen() {
                   }}
                   disabled={(item.itens?.length || 0) === 0}
                 >
-                  <Ionicons name="close-circle" size={16} color="#fff" style={{ marginRight: 4 }} />
+                  <View style={{ marginRight: 4 }}>
+                    <SafeIcon name="close-circle" size={16} color="#fff" fallbackText="×" />
+                  </View>
                   <Text style={styles.fecharButtonText}>🔴 FECHAR COMANDA</Text>
                 </TouchableOpacity>
               )}

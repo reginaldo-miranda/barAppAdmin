@@ -17,7 +17,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeIcon } from '../../components/SafeIcon';
 import { productService, categoryService, typeService, unidadeMedidaService } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import SearchAndFilter from '../../src/components/SearchAndFilter';
@@ -163,8 +163,8 @@ export default function AdminProdutosScreen() {
 
   const loadTipos = async () => {
     try {
-      const response = await typeService.getAll();
-      setTipos(response.data);
+      const tipos = await typeService.getAll();
+      setTipos(tipos);
     } catch (error: any) {
       console.error('Erro ao carregar tipos:', error);
     }
@@ -172,8 +172,8 @@ export default function AdminProdutosScreen() {
 
   const loadUnidades = async () => {
     try {
-      const response = await unidadeMedidaService.getAll();
-      setUnidades(response.data);
+      const unidades = await unidadeMedidaService.getAll();
+      setUnidades(unidades);
     } catch (error: any) {
       console.error('Erro ao carregar unidades:', error);
     }
@@ -346,13 +346,13 @@ export default function AdminProdutosScreen() {
             style={styles.actionButton}
             onPress={() => handleEditProduct(item)}
           >
-            <Ionicons name="pencil" size={18} color="#2196F3" />
+            <SafeIcon name="pencil" size={18} color="#2196F3" fallbackText="✎" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => handleDeleteProduct(item)}
           >
-            <Ionicons name="trash" size={18} color="#f44336" />
+            <SafeIcon name="trash" size={18} color="#f44336" fallbackText="🗑" />
           </TouchableOpacity>
         </View>
       </View>
@@ -426,7 +426,7 @@ export default function AdminProdutosScreen() {
             setModalVisible(true);
           }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <SafeIcon name="add" size={24} color="#fff" fallbackText="+" />
         </TouchableOpacity>
       </View>
 
@@ -444,7 +444,7 @@ export default function AdminProdutosScreen() {
               setSortBy(sortOptions[nextIndex]);
             }}
           >
-            <Ionicons name="swap-vertical" size={18} color="#666" />
+            <SafeIcon name="swap-vertical" size={18} color="#666" fallbackText="↕" />
             <Text style={styles.sortText}>
               {sortBy === 'nome' ? 'Nome' : sortBy === 'categoria' ? 'Categoria' : 'Preço'}
             </Text>
@@ -456,13 +456,13 @@ export default function AdminProdutosScreen() {
               style={[styles.viewModeButton, viewMode === 'grid' && styles.viewModeButtonActive]}
               onPress={() => setViewMode('grid')}
             >
-              <Ionicons name="grid" size={18} color={viewMode === 'grid' ? '#2196F3' : '#666'} />
+              <SafeIcon name="grid" size={18} color={viewMode === 'grid' ? '#2196F3' : '#666'} fallbackText="▦" />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewModeButton, viewMode === 'list' && styles.viewModeButtonActive]}
               onPress={() => setViewMode('list')}
             >
-              <Ionicons name="list" size={18} color={viewMode === 'list' ? '#2196F3' : '#666'} />
+              <SafeIcon name="list" size={18} color={viewMode === 'list' ? '#2196F3' : '#666'} fallbackText="≡" />
             </TouchableOpacity>
           </View>
         </View>
@@ -494,7 +494,7 @@ export default function AdminProdutosScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.accessDenied}>
-          <Ionicons name="lock-closed" size={64} color="#ccc" />
+          <SafeIcon name="lock-closed" size={64} color="#ccc" fallbackText="🔒" />
           <Text style={styles.accessDeniedText}>Acesso Negado</Text>
           <Text style={styles.accessDeniedSubtext}>
             Você não tem permissão para gerenciar produtos
@@ -540,13 +540,9 @@ export default function AdminProdutosScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="cube-outline" size={64} color="#ccc" />
+              <SafeIcon name="cube-outline" size={64} color="#ccc" fallbackText="📦" />
               <Text style={styles.emptyText}>Nenhum produto encontrado</Text>
-              <Text style={styles.emptySubtext}>
-                {searchText || selectedCategory || filterActive !== null
-                  ? 'Tente ajustar os filtros de busca'
-                  : 'Adicione seu primeiro produto'}
-              </Text>
+              <Text style={styles.emptySubtext}>Tente ajustar filtros ou adicione um novo produto</Text>
             </View>
           }
         />

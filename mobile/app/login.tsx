@@ -10,9 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// import removido: Ionicons não é necessário, usamos SafeIcon
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
+import { SafeIcon } from '../components/SafeIcon';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('admin@barapp.com');
@@ -61,7 +62,7 @@ export default function LoginScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Ionicons name="restaurant" size={64} color="#2196F3" />
+            <SafeIcon name="restaurant" size={64} color="#2196F3" fallbackText="🍽" />
           </View>
           <Text style={styles.title}>BarApp</Text>
           <Text style={styles.subtitle}>Sistema de Vendas</Text>
@@ -69,7 +70,7 @@ export default function LoginScreen() {
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <Ionicons name="mail" size={20} color="#666" style={styles.inputIcon} />
+            <SafeIcon name="mail" size={20} color="#666" fallbackText="@" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -90,7 +91,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed" size={20} color="#666" style={styles.inputIcon} />
+            <SafeIcon name="lock-closed" size={20} color="#666" fallbackText="🔒" style={styles.inputIcon} />
             <TextInput
               ref={passwordRef}
               style={styles.input}
@@ -112,10 +113,11 @@ export default function LoginScreen() {
               style={styles.eyeIcon}
               onPress={() => setShowPassword(!showPassword)}
             >
-              <Ionicons
+              <SafeIcon
                 name={showPassword ? 'eye-off' : 'eye'}
                 size={20}
                 color="#666"
+                fallbackText={showPassword ? '🙈' : '👁'}
               />
             </TouchableOpacity>
           </View>
