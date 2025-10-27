@@ -290,6 +290,7 @@ export const saleService = {
   create: (data) => api.post('/sale/create', data),
   addItem: (id, item) => api.post(`/sale/${id}/item`, item),
   removeItem: (id, produtoId) => api.delete(`/sale/${id}/item/${produtoId}`),
+  updateItemQuantity: (id, produtoId, quantidade) => api.put(`/sale/${id}/item/${produtoId}`, { quantidade }),
   finalize: (id, payload) => {
     const body = typeof payload === 'string'
       ? { formaPagamento: payload }

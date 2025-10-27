@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { saleService, mesaService, comandaService } from '../src/services/api';
 import { useAuth } from '../src/contexts/AuthContext';
-import { useConfirmation } from '../src/contexts/ConfirmationContext';
 import AddProductToTable from '../src/components/AddProductToTable';
 import ScreenIdentifier from '../src/components/ScreenIdentifier';
 import { Sale, CartItem, PaymentMethod, Product } from '../src/types/index';
@@ -23,7 +22,7 @@ import SaleItemsModal from '../src/components/SaleItemsModal';
 export default function SaleScreen() {
   const { tipo, mesaId, vendaId, viewMode } = useLocalSearchParams();
   const { user } = useAuth() as any;
-  const { confirmRemove } = useConfirmation();
+  // const { confirmRemove } = useConfirmation();
   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sale, setSale] = useState<Sale | null>(null);
@@ -229,8 +228,8 @@ export default function SaleScreen() {
               const newQuantity = item.quantidade + 1;
               return {
                   ...item,
-                  quantidade: newQuantity,
-                  subtotal: item.precoUnitario * newQuantity
+                  quantidade: newQuantidade,
+                  subtotal: item.precoUnitario * newQuantidade
                 };
             }
             return item;
@@ -258,52 +257,132 @@ export default function SaleScreen() {
     }
   };
 
-  const updateCartItem = (item: CartItem, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(item);
+  // Helper: confirmação via Alert (nativa)
+  const confirmRemoveAlert = (itemName: string): Promise<boolean> => {
+    console.log('[Alert] solicitando confirmação para remover', itemName);
+    return new Promise((resolve) => {
+      Alert.alert(
+        'Confirmar Remoção',
+        `Tem certeza que deseja remover ${itemName}?`,
+        [
+          { text: 'Cancelar', style: 'cancel', onPress: () => { console.log('[Alert] cancelou remoção'); resolve(false); } },
+          { text: 'Remover', style: 'destructive', onPress: () => { console.log('[Alert] confirmou remoção'); resolve(true); } },
+        ],
+        { cancelable: true }
+      );
+    });
+  };
+  const updateCartItem = async (item: CartItem, newQuantity: number) => {
+    console.log('[Sale] updateCartItem', { itemId: item._id, from: item.quantidade, to: newQuantity });
+    if (!sale || !item?.produto?._id) {
+      Alert.alert('Erro', 'Venda não encontrada ou item inválido. Recarregando...');
+      try {
+        if (tipo === 'comanda' && vendaId) {
+          const response = await comandaService.getById(vendaId as string);
+          setSale(response.data);
+          setCart(response.data.itens || []);
+        } else if (sale?._id) {
+          const response = await saleService.getById(sale._id);
+          setSale(response.data);
+          setCart(response.data.itens || []);
+        }
+      } catch {}
       return;
     }
 
-    setCart(prevCart => {
-      return prevCart.map(cartItem => {
-        if (cartItem._id === item._id) {
-          return {
-            ...cartItem,
-            quantidade: newQuantity,
-            subtotal: cartItem.precoUnitario * newQuantity
-          };
+    // Confirmar decremento (inclui quando vai para 0)
+    if (newQuantity < item.quantidade) {
+      const confirmed = await confirmRemoveAlert(
+        newQuantity <= 0
+          ? `${item.nomeProduto} do carrinho`
+          : `uma unidade de ${item.nomeProduto}`
+      );
+      if (!confirmed) return;
+    }
+
+    const produtoId = item.produto._id;
+
+    try {
+      let response;
+      if (newQuantity <= 0) {
+        // Remover item por completo via API
+        if (tipo === 'comanda') {
+          response = await comandaService.removeItem(sale._id, produtoId);
+        } else {
+          response = await saleService.removeItem(sale._id, produtoId);
         }
-        return cartItem;
-      });
-    });
+      } else {
+        // Atualizar quantidade via API
+        if (tipo === 'comanda') {
+          response = await comandaService.updateItemQuantity(sale._id, produtoId, newQuantity);
+        } else {
+          response = await saleService.updateItemQuantity(sale._id, produtoId, newQuantity);
+        }
+      }
+
+      // Sincronizar estado local com resposta do backend
+      if (response?.data) {
+        setSale(response.data);
+        setCart(response.data.itens || []);
+      } else {
+        // Fallback: atualizar localmente
+        if (newQuantity <= 0) {
+          setCart(prevCart => prevCart.filter(cartItem => cartItem._id !== item._id));
+        } else {
+          setCart(prevCart => prevCart.map(cartItem => (
+            cartItem._id === item._id
+              ? { ...cartItem, quantidade: newQuantity, subtotal: cartItem.precoUnitario * newQuantity }
+              : cartItem
+          )));
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao atualizar item:', error);
+      Alert.alert('Erro', error?.response?.data?.error || 'Não foi possível atualizar o item.');
+      // Tentar re-sincronizar com backend
+      try {
+        if (tipo === 'comanda') {
+          const refreshed = await comandaService.getById(sale._id);
+          setSale(refreshed.data);
+          setCart(refreshed.data.itens || []);
+        } else {
+          const refreshed = await saleService.getById(sale._id);
+          setSale(refreshed.data);
+          setCart(refreshed.data.itens || []);
+        }
+      } catch {}
+    }
   };
 
   const removeFromCart = async (item: CartItem) => {
-    const confirmed = await confirmRemove(
-      item.quantidade > 1 
-        ? `uma unidade de ${item.nomeProduto}`
-        : `${item.nomeProduto} do carrinho`
-    );
+    if (!sale || !item?.produto?._id) {
+      Alert.alert('Erro', 'Venda não encontrada ou item inválido.');
+      return;
+    }
 
+    const confirmed = await confirmRemoveAlert(`${item.nomeProduto} do carrinho`);
     if (!confirmed) return;
 
-    setCart(prevCart => {
-      if (item.quantidade > 1) {
-        return prevCart.map(cartItem => {
-          if (cartItem._id === item._id) {
-            const newQuantity = cartItem.quantidade - 1;
-            return {
-              ...cartItem,
-              quantidade: newQuantity,
-              subtotal: cartItem.precoUnitario * newQuantity
-            };
-          }
-          return cartItem;
-        });
+    const produtoId = item.produto._id;
+
+    try {
+      let response;
+      if (tipo === 'comanda') {
+        response = await comandaService.removeItem(sale._id, produtoId);
       } else {
-        return prevCart.filter(cartItem => cartItem._id !== item._id);
+        response = await saleService.removeItem(sale._id, produtoId);
       }
-    });
+
+      if (response?.data) {
+        setSale(response.data);
+        setCart(response.data.itens || []);
+      } else {
+        setCart(prevCart => prevCart.filter(cartItem => cartItem._id !== item._id));
+      }
+    } catch (error: any) {
+      console.error('Erro ao remover item:', error);
+      Alert.alert('Erro', error?.response?.data?.error || 'Não foi possível remover o item.');
+    }
   };
 
   const finalizeSale = async () => {
@@ -439,7 +518,7 @@ export default function SaleScreen() {
       <AddProductToTable
         saleItems={isPhone ? [] : cart}
         onAddProduct={addToCart}
-        onUpdateItem={updateCartItem}
+        onUpdateItem={(item, newQty) => { updateCartItem(item, newQty); }}
         onRemoveItem={removeFromCart}
         isViewMode={isViewMode}
         hideSaleSection={isPhone}
