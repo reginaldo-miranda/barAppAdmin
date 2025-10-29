@@ -144,6 +144,10 @@ const saleSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Índices para consultas frequentes
+saleSchema.index({ status: 1, dataVenda: -1 });
+saleSchema.index({ mesa: 1, status: 1 });
+
 // Middleware para calcular totais antes de salvar
 saleSchema.pre('save', function(next) {
   // Gerar número da comanda se não existir

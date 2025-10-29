@@ -1,5 +1,6 @@
 import express from 'express';
 import UnidadeMedida from '../models/UnidadeMedida.js';
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.get('/list', async (req, res) => {
 });
 
 // Criar nova unidade de medida
-router.post('/create', async (req, res) => {
+router.post('/create', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const { nome, sigla } = req.body;
     
@@ -38,7 +39,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Atualizar unidade de medida
-router.put('/update/:id', async (req, res) => {
+router.put('/update/:id', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, sigla, ativo } = req.body;
@@ -61,7 +62,7 @@ router.put('/update/:id', async (req, res) => {
 });
 
 // Deletar unidade de medida (soft delete)
-router.delete('/delete/:id', async (req, res) => {
+router.delete('/delete/:id', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const { id } = req.params;
     

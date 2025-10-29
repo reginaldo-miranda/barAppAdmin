@@ -1,10 +1,11 @@
 import express from "express";
 import Customer from "../models/Customer.js";
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Rota para criar cliente
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, authorize("clientes"), async (req, res) => {
   try {
     const { nome, endereco, cidade, estado, fone, cpf, rg, dataNascimento, ativo } = req.body;
 
@@ -60,7 +61,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Rota para atualizar cliente
-router.put("/update/:id", async (req, res) => {
+router.put("/update/:id", requireAuth, authorize("clientes"), async (req, res) => {
   try {
     const { nome, endereco, cidade, estado, fone, cpf, rg, dataNascimento, ativo } = req.body;
     
@@ -88,7 +89,7 @@ router.put("/update/:id", async (req, res) => {
 });
 
 // Rota para deletar cliente
-router.delete("/delete/:id", async (req, res) => {
+router.delete("/delete/:id", requireAuth, authorize("clientes"), async (req, res) => {
   try {
     const customerDeletado = await Customer.findByIdAndDelete(req.params.id);
     

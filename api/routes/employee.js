@@ -1,10 +1,11 @@
 import express from "express";
 import Employee from "../models/Employee.js";
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Rota para criar funcionário
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, authorize("funcionarios"), async (req, res) => {
   try {
     const { nome, endereco, bairro, telefone, salario, dataAdmissao, ativo } = req.body;
 
@@ -52,7 +53,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Rota para atualizar funcionário
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, authorize("funcionarios"), async (req, res) => {
   try {
     const { nome, endereco, bairro, telefone, salario, dataAdmissao, ativo } = req.body;
     
@@ -74,7 +75,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Rota para deletar funcionário
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, authorize("funcionarios"), async (req, res) => {
   try {
     const employee = await Employee.findByIdAndDelete(req.params.id);
     if (!employee) {

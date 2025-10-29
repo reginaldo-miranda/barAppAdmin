@@ -1,6 +1,7 @@
 import express from "express";
 import User from "../models/User.js";
 import Employee from "../models/Employee.js";
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -44,7 +45,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Rota para criar usuário
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { email, senha, nome, tipo, funcionario, permissoes } = req.body;
 
@@ -88,7 +89,7 @@ router.post("/create", async (req, res) => {
 });
 
 // Rota para atualizar permissões do usuário
-router.put("/:id/permissions", async (req, res) => {
+router.put("/:id/permissions", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { permissoes } = req.body;
     
@@ -110,7 +111,7 @@ router.put("/:id/permissions", async (req, res) => {
 });
 
 // Rota para ativar/desativar usuário
-router.put("/:id/status", async (req, res) => {
+router.put("/:id/status", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { ativo } = req.body;
     
@@ -135,7 +136,7 @@ router.put("/:id/status", async (req, res) => {
 });
 
 // Rota para atualizar dados do usuário
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { nome, email, tipo, funcionario, permissoes } = req.body;
     
@@ -157,7 +158,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Rota para deletar usuário
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) {

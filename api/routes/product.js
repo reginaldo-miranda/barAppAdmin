@@ -1,5 +1,6 @@
 import express from "express";
 import Product from "../models/Product.js";
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.get("/", async (req, res) => {
 });
 
 // Rota para criar produto
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, authorize("produtos"), async (req, res) => {
   try {
     const { nome, descricao, preco, precoVenda, precoCusto, categoria, tipo, grupo, unidade, estoque, quantidade, estoqueMinimo, ativo } = req.body;
 
@@ -67,7 +68,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Rota para atualizar produto
-router.put("/update/:id", async (req, res) => {
+router.put("/update/:id", requireAuth, authorize("produtos"), async (req, res) => {
   try {
     const { nome, descricao, precoCusto, precoVenda, categoria, tipo, grupo, unidade, ativo, dadosFiscais, quantidade, imagem, tempoPreparoMinutos, disponivel } = req.body;
     
@@ -102,7 +103,7 @@ router.put("/update/:id", async (req, res) => {
 });
 
 // Rota alternativa para atualizar produto (compatibilidade com frontend)
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, authorize("produtos"), async (req, res) => {
   try {
     const { nome, descricao, preco, precoVenda, precoCusto, categoria, tipo, grupo, unidade, estoque, quantidade, estoqueMinimo, ativo } = req.body;
     
@@ -137,7 +138,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Rota para deletar produto
-router.delete("/delete/:id", async (req, res) => {
+router.delete("/delete/:id", requireAuth, authorize("produtos"), async (req, res) => {
   try {
     const produtoDeletado = await Product.findByIdAndDelete(req.params.id);
     
@@ -153,7 +154,7 @@ router.delete("/delete/:id", async (req, res) => {
 });
 
 // Rota alternativa para deletar produto (compatibilidade com frontend)
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, authorize("produtos"), async (req, res) => {
   try {
     const produtoDeletado = await Product.findByIdAndDelete(req.params.id);
     

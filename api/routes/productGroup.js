@@ -1,10 +1,11 @@
 import express from "express";
 import ProductGroup from "../models/ProductGroup.js";
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Rota para criar grupo
-router.post("/create", async (req, res) => {
+router.post("/create", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { nome, descricao, icone } = req.body;
 
@@ -54,7 +55,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Rota para atualizar grupo
-router.put("/update/:id", async (req, res) => {
+router.put("/update/:id", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const { nome, descricao, icone, ativo } = req.body;
     
@@ -76,7 +77,7 @@ router.put("/update/:id", async (req, res) => {
 });
 
 // Rota para deletar grupo
-router.delete("/delete/:id", async (req, res) => {
+router.delete("/delete/:id", requireAuth, authorize("configuracoes"), async (req, res) => {
   try {
     const grupoDeletado = await ProductGroup.findByIdAndUpdate(
       req.params.id,

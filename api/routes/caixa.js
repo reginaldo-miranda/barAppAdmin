@@ -1,6 +1,7 @@
 import express from 'express';
 import Caixa from '../models/Caixa.js';
 import Employee from '../models/Employee.js';
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -78,7 +79,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Abrir caixa
-router.post('/abrir', async (req, res) => {
+router.post('/abrir', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { funcionarioId, valorAbertura = 0, observacoes = '' } = req.body;
 
@@ -112,7 +113,7 @@ router.post('/abrir', async (req, res) => {
 });
 
 // Fechar caixa
-router.put('/:id/fechar', async (req, res) => {
+router.put('/:id/fechar', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { funcionarioId, valorFechamento, observacoes = '' } = req.body;
 
@@ -150,7 +151,7 @@ router.put('/:id/fechar', async (req, res) => {
 });
 
 // Registrar venda no caixa
-router.post('/registrar-venda', async (req, res) => {
+router.post('/registrar-venda', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { vendaId, valor, formaPagamento } = req.body;
 

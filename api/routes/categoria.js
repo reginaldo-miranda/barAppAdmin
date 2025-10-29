@@ -1,5 +1,6 @@
 import express from 'express';
 import Categoria from '../models/Categoria.js';
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Criar nova categoria
-router.post('/create', async (req, res) => {
+router.post('/create', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const { nome, descricao } = req.body;
     
@@ -51,7 +52,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Atualizar categoria
-router.put('/update/:id', async (req, res) => {
+router.put('/update/:id', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const { nome, descricao, ativo } = req.body;
     
@@ -76,7 +77,7 @@ router.put('/update/:id', async (req, res) => {
 });
 
 // Excluir categoria (soft delete)
-router.delete('/delete/:id', async (req, res) => {
+router.delete('/delete/:id', requireAuth, authorize('configuracoes'), async (req, res) => {
   try {
     const categoria = await Categoria.findByIdAndUpdate(
       req.params.id,

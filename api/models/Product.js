@@ -18,4 +18,7 @@ const ProductSchema = new mongoose.Schema({
   dataInclusao: { type: Date, default: Date.now }
 });
 
+// Índices para listagem rápida por ativo e data
+ProductSchema.index({ ativo: 1, dataInclusao: -1 });
+
 export default mongoose.model("Product", ProductSchema);

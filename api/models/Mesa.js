@@ -58,6 +58,10 @@ const mesaSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Índices para filtrar status e relacionamentos
+mesaSchema.index({ status: 1, numero: 1 });
+mesaSchema.index({ vendaAtual: 1 });
+
 // Método para abrir mesa
 mesaSchema.methods.abrir = function(numeroClientes = 1) {
   this.status = 'ocupada';

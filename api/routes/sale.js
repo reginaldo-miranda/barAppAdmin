@@ -4,11 +4,12 @@ import Product from '../models/Product.js';
 import Employee from '../models/Employee.js';
 import Customer from '../models/Customer.js';
 import Caixa from '../models/Caixa.js';
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Criar nova venda
-router.post('/create', async (req, res) => {
+router.post('/create', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { funcionario, cliente, mesa, tipoVenda, nomeComanda, valorTotal, observacoes } = req.body
 
@@ -261,7 +262,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Adicionar item à venda
-router.post('/:id/item', async (req, res) => {
+router.post('/:id/item', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { produtoId, quantidade } = req.body;
     
@@ -314,7 +315,7 @@ router.post('/:id/item', async (req, res) => {
 });
 
 // Remover item da venda
-router.delete('/:id/item/:produtoId', async (req, res) => {
+router.delete('/:id/item/:produtoId', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const venda = await Sale.findById(req.params.id);
     if (!venda) {
@@ -341,7 +342,7 @@ router.delete('/:id/item/:produtoId', async (req, res) => {
 });
 
 // Atualizar quantidade de item
-router.put('/:id/item/:produtoId', async (req, res) => {
+router.put('/:id/item/:produtoId', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { quantidade } = req.body;
     
@@ -381,7 +382,7 @@ router.put('/:id/item/:produtoId', async (req, res) => {
 });
 
 // Aplicar desconto
-router.put('/:id/discount', async (req, res) => {
+router.put('/:id/discount', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { desconto } = req.body;
     
@@ -414,7 +415,7 @@ router.put('/:id/discount', async (req, res) => {
 });
 
 // Finalizar venda
-router.put('/:id/finalize', async (req, res) => {
+router.put('/:id/finalize', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const { formaPagamento } = req.body;
     
@@ -605,7 +606,7 @@ router.put('/:id/finalize', async (req, res) => {
 });
 
 // Cancelar venda
-router.put('/:id/cancel', async (req, res) => {
+router.put('/:id/cancel', requireAuth, authorize('vendas'), async (req, res) => {
   try {
     const venda = await Sale.findById(req.params.id);
     if (!venda) {

@@ -1,5 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { optionalAuth, issueToken } from "../middleware/auth.js";
 import User from "../models/User.js";
 
 const router = express.Router();
@@ -43,25 +45,23 @@ router.post("/login", async (req, res) => {
 
     // Verificar se é o usuário admin fixo
     if (email === adminFixo.email && senhaInput === adminFixo.password) {
-      return res.json({ 
-        message: "Login bem-sucedido", 
-        token: "admin-token-123", // Token fictício para o admin
-        user: { 
-          _id: "admin-fixo", 
-          email: adminFixo.email, 
-          nome: adminFixo.name, 
-          tipo: "admin",
-          permissoes: {
-            vendas: true,
-            produtos: true,
-            funcionarios: true,
-            clientes: true,
-            relatorios: true,
-            configuracoes: true,
-            comandas: true
-          }
-        } 
-      });
+      const adminUser = {
+        _id: "admin-fixo",
+        email: adminFixo.email,
+        nome: adminFixo.name,
+        tipo: "admin",
+        permissoes: {
+          vendas: true,
+          produtos: true,
+          funcionarios: true,
+          clientes: true,
+          relatorios: true,
+          configuracoes: true,
+          comandas: true
+        }
+      };
+      const token = issueToken(adminUser);
+      return res.json({ message: "Login bem-sucedido", token, user: adminUser });
     }
 
     const user = await User.findOne({ email });
@@ -70,10 +70,24 @@ router.post("/login", async (req, res) => {
     const senhaCorreta = await bcrypt.compare(senhaInput, user.senha);
     if (!senhaCorreta) return res.status(400).json({ error: "Senha incorreta" });
 
-    res.json({ message: "Login bem-sucedido", user: { _id: user._id, email: user.email, nome: user.nome || user.name, tipo: user.tipo || "funcionario" } });
+    const safeUser = {
+      _id: user._id,
+      email: user.email,
+      nome: user.nome || user.name,
+      tipo: user.tipo || "funcionario",
+      permissoes: user.permissoes || {}
+    };
+    const token = issueToken(safeUser);
+    res.json({ message: "Login bem-sucedido", token, user: safeUser });
   } catch (error) {
     res.status(500).json({ error: "Erro no login" });
   }
+});
+
+// Retorna usuário autenticado
+router.get("/me", optionalAuth, (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Não autenticado" });
+  res.json({ user: req.user });
 });
 
 export default router;

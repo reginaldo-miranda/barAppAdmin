@@ -15,6 +15,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useProduct } from '../../src/contexts/ProductContext';
 import { productService, categoryService } from '../../src/services/api';
+import { connectSocket, socketOn, socketOff } from '../../src/services/socket';
 import SearchAndFilter from '../../src/components/SearchAndFilter';
 
 interface Produto {
@@ -92,6 +93,36 @@ export default function ListagemProdutos() {
     if (hasPermission('produtos')) {
       loadProdutos();
     }
+  }, [hasPermission]);
+
+  // Conectar ao Socket.IO e escutar inserções de produtos
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!hasPermission('produtos')) return;
+      await connectSocket();
+
+      const onProductInsert = (novoProduto: Produto) => {
+        try {
+          if (!mounted) return;
+          setProdutos(prev => {
+            const exists = prev.some(p => p._id === novoProduto._id);
+            if (exists) return prev;
+            // Inserir no topo para feedback rápido
+            return [novoProduto, ...prev];
+          });
+        } catch (e) {
+          console.warn('Erro ao processar produto inserido em tempo real:', e);
+        }
+      };
+
+      socketOn('product:insert', onProductInsert);
+
+      return () => {
+        mounted = false;
+        socketOff('product:insert', onProductInsert);
+      };
+    })();
   }, [hasPermission]);
 
   useEffect(() => {

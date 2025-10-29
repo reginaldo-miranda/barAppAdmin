@@ -70,8 +70,8 @@ function resolveApiBaseUrl() {
       return `http://${envPackagerHost}:${DEFAULT_PORT}/api`;
     }
   } catch {}
-  // Último recurso: usar IP da rede local para manter funcionalidade em dispositivos
-  return 'http://192.168.0.176:4000/api';
+  // Sem fallback fixo: exigir configuração via ENV ou tela de Configurações
+  return '';
 }
 
 // Primeiro: variável de ambiente pública

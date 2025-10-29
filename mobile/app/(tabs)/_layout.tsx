@@ -8,10 +8,71 @@ import { HapticTab } from '@/components/haptic-tab';
 import ProductsTabButton from '../../src/components/ProductsTabButton';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { SafeIcon } from '../../components/SafeIcon';
+import { connectSocket, socketOn, socketOff, shouldEnableRealtime } from '../../src/services/socket';
+import { events } from '../../src/utils/eventBus';
 
 export default function TabLayout() {
   const authContext = useAuth() as any;
   const { user, isAuthenticated, loading, hasPermission, isAdmin } = authContext;
+
+  // Garantir que hooks sejam chamados antes de quaisquer retornos condicionais
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      // Redireciona para a tela de login sempre que a autenticação ficar falsa
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated]);
+
+  // Integração global de Socket.IO -> EventBus para atualizações em tempo real
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const enabled = await shouldEnableRealtime();
+        if (!enabled) return;
+        await connectSocket();
+
+        const handleSaleInsert = () => {
+          if (!mounted) return;
+          events.emit('caixa:refresh');
+          events.emit('comandas:refresh');
+          events.emit('mesas:refresh');
+        };
+
+        const handleSaleUpdate = () => {
+          if (!mounted) return;
+          events.emit('caixa:refresh');
+          events.emit('comandas:refresh');
+          events.emit('mesas:refresh');
+        };
+
+        const handleMesaInsert = () => {
+          if (!mounted) return;
+          events.emit('mesas:refresh');
+        };
+
+        const handleMesaUpdate = () => {
+          if (!mounted) return;
+          events.emit('mesas:refresh');
+        };
+
+        socketOn('sale:insert', handleSaleInsert);
+        socketOn('sale:update', handleSaleUpdate);
+        socketOn('mesa:insert', handleMesaInsert);
+        socketOn('mesa:update', handleMesaUpdate);
+
+        return () => {
+          mounted = false;
+          socketOff('sale:insert', handleSaleInsert);
+          socketOff('sale:update', handleSaleUpdate);
+          socketOff('mesa:insert', handleMesaInsert);
+          socketOff('mesa:update', handleMesaUpdate);
+        };
+      } catch (e) {
+        console.warn('Falha ao inicializar socket global:', e);
+      }
+    })();
+  }, [isAuthenticated]);
 
   if (loading) {
     return (
@@ -24,13 +85,6 @@ export default function TabLayout() {
   if (!isAuthenticated) {
     return null;
   }
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      // Redireciona para a tela de login sempre que a autenticação ficar falsa
-      router.replace('/login');
-    }
-  }, [loading, isAuthenticated]);
 
   return (
     <Tabs

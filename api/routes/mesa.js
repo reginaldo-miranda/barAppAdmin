@@ -1,6 +1,7 @@
 import express from 'express';
 import Mesa from '../models/Mesa.js';
 import Sale from '../models/Sale.js';
+import { requireAuth, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Criar nova mesa
-router.post('/create', async (req, res) => {
+router.post('/create', requireAuth, authorize('comandas'), async (req, res) => {
   try {
     const { numero, nome, capacidade, observacoes, tipo } = req.body;
     
@@ -62,7 +63,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Abrir mesa
-router.post('/:id/abrir', async (req, res) => {
+router.post('/:id/abrir', requireAuth, authorize('comandas'), async (req, res) => {
   try {
     const { id } = req.params;
     const { funcionarioId, nomeResponsavel, observacoes, numeroClientes = 1 } = req.body;
@@ -98,7 +99,7 @@ router.post('/:id/abrir', async (req, res) => {
 });
 
 // Fechar mesa
-router.post('/:id/fechar', async (req, res) => {
+router.post('/:id/fechar', requireAuth, authorize('comandas'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -125,7 +126,7 @@ router.post('/:id/fechar', async (req, res) => {
 });
 
 // Atualizar mesa
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, authorize('comandas'), async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -152,7 +153,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Deletar mesa (desativar)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, authorize('comandas'), async (req, res) => {
   try {
     const { id } = req.params;
     
